@@ -9,6 +9,9 @@ class EntityState(object):
         # physical velocity
         self.p_vel = None
 
+        # travelled distance
+        self.travelled = 0
+
 # state of agents (including communication and internal/mental state)
 class AgentState(EntityState):
     def __init__(self):
@@ -129,7 +132,7 @@ class World(object):
         # apply environment forces
         p_force = self.apply_environment_force(p_force)
         # apply repulsive field forces
-        p_force = self.apply_repulsive_force(p_force)
+        p_force = self.apply_repulsive_force(p_force) # MINE
         # integrate physical state
         self.integrate_state(p_force)
         # update agent state
@@ -195,7 +198,11 @@ class World(object):
                 if speed > entity.max_speed:
                     entity.state.p_vel = entity.state.p_vel / np.sqrt(np.square(entity.state.p_vel[0]) +
                                                                   np.square(entity.state.p_vel[1])) * entity.max_speed
-            entity.state.p_pos += entity.state.p_vel * self.dt
+            
+            displacement = entity.state.p_vel * self.dt
+            entity.state.p_pos += displacement
+            entity.state.travelled += np.linalg.norm(displacement)
+
 
     def update_agent_state(self, agent):
         # set communication state (directly for now)

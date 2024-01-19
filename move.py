@@ -30,14 +30,14 @@ def update_targets(targets, done, bounds=(-1, 1)):
     targets[done_idx] = samples
     return targets
 
-def agent_path(agent, keypoints, bounds=(-1, 1), length=1000):
+def agent_path(agent, keypoints, length=1000):
     keypoints[:, 0] = agent.state.p_pos
 
-    tck, _ = splprep(keypoints, k=2, s=0) # k=2 makes a c2 spline
+    tck, _ = splprep(keypoints, k=2, s=0) # k=2 makes a c2 spline, s=0 looks good
 
     t = np.linspace(0, 1, length)
     return splev(t, tck)
 
 def robot_paths(world, bounds=(-1,1), length=1000, num_keypoints=10):
     keypoints = np.random.uniform(*bounds, size=[len(world.robots), 2, num_keypoints])
-    return np.array([agent_path(a, k, bounds=bounds, length=length) for a,k in zip(world.robots, keypoints)])
+    return np.array([agent_path(a, k, length=length) for a,k in zip(world.robots, keypoints)])

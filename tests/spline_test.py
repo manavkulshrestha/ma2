@@ -10,7 +10,6 @@ print(f'{SEED=}')
 # Generate some example data points
 N = 10
 bounds = -1, 1
-t = np.linspace(0, 1, N)
 x, y = np.random.uniform(*bounds, size=[2, N])
 
 # Use splprep to get the spline representation with k=4 for C1 continuity

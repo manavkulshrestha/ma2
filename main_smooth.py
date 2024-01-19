@@ -43,16 +43,9 @@ for _ in range(1000):
         obs_n = env.reset()
         
     env.render()
-    
-# obs_n = env.reset()
-# for _ in range(1000):
-#     # action space is [x,y] where 0 <= x,y <= 1
-#     act_n = np.array([space.sample() for space in env.action_space[num_humans:]]) # this is where you would insert your policy
-#     obs_n, reward_n, done_n, _ = env.step(np.concatenate([[[0,0]]*num_humans, act_n]))
-    
-#     if np.all(done_n):
-#         obs_n = env.reset()
-#     # time.sleep(0.1)
-#     env.render()
+
+# implement spline movement
+# implement daata collection in different class so it can be used for both files
+# dual modality
 
 env.close()
