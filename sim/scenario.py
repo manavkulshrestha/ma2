@@ -1,17 +1,17 @@
 import numpy as np
 import time
 
-from make_env import *
+from sim.make_env import make_env
 
-from move import move_humans, move_robots, robot_paths, update_targets
-from datacollection import timestep_data
+from sim.move import move_humans, move_robots, robot_paths, update_targets
+from data.datacollection import timestep_data
 
 
 # np.random.seed(421)
 
-def linear_scenario(scene_len=1000, render=True):
-    num_humans, num_robots, num_goals = np.random.randint([7,   7, 0],
-                                                          [10, 10, 1])
+def linear_scenario(scene_len=1000, render=True,
+                    human_rng=(7,10), robot_rng=(7,10), goal_rng=(0,1)):
+    num_humans, num_robots, num_goals = np.random.randint(*np.vstack([human_rng, robot_rng, goal_rng]).T)
     env = make_env('simple_herding', benchmark=False,
                 num_humans=num_humans, num_robots=num_robots, num_goals=num_goals)
     # print(num_robots, num_humans, num_goals)
@@ -52,14 +52,15 @@ def linear_scenario(scene_len=1000, render=True):
         if render:
             env.render()
 
-        timeseries_data.append(timestep_data(env.world, act_n))
+        timeseries_data.append(timestep_data(env.world, act_n[:num_humans], act_n[num_humans:]))
 
     env.close()
     return timeseries_data, num_humans, num_robots, num_goals
 
-def spline_scenario(scene_len=1000, render=True):
-    num_humans, num_robots, num_goals = np.random.randint([7,   7, 0],
-                                                          [10, 10, 1])
+def spline_scenario(scene_len=1000, render=True,
+                    human_rng=(7,10), robot_rng=(7,10), goal_rng=(0,1),
+                    display_spline_idx=None):
+    num_humans, num_robots, num_goals = np.random.randint(*np.vstack([human_rng, robot_rng, goal_rng]).T)
     env = make_env('simple_herding', benchmark=False,
                 num_humans=num_humans, num_robots=num_robots, num_goals=num_goals)
     # print(num_robots, num_humans, num_goals)
@@ -75,7 +76,7 @@ def spline_scenario(scene_len=1000, render=True):
     # targets that robots go to and whether they got there
     # targ_r = np.zeros([num_robots, 2])
     # done_r = np.full(num_robots, True) 
-    path_r = robot_paths(env.world, length=scene_len)
+    path_r = robot_paths(env.world, length=scene_len, disp_idx=display_spline_idx)
 
     timeseries_data = []
 
@@ -100,7 +101,7 @@ def spline_scenario(scene_len=1000, render=True):
         if render:
             env.render()
 
-        timeseries_data.append(timestep_data(env.world, act_n))
+        timeseries_data.append(timestep_data(env.world, act_n[:num_humans], act_n[num_humans:]))
 
     env.close()
     return timeseries_data, num_humans, num_robots, num_goals

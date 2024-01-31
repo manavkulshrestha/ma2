@@ -12,3 +12,7 @@ def load_pkl(s, ext=False):
     
 def time_label():
     return datetime.now().strftime('%y-%m-%d-%H%M%S%f')[:17]
+
+def sliding(lst, n):
+    """ returns a sliding window of size n over a list lst """
+    return zip(*[lst[i:] for i in range(n)])
