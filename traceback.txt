@@ -1,0 +1,12 @@
+Traceback (most recent call last):
+  File "/home/mk/anaconda3/envs/ma/lib/python3.10/multiprocessing/util.py", line 300, in _run_finalizers
+    finalizer()
+  File "/home/mk/anaconda3/envs/ma/lib/python3.10/multiprocessing/util.py", line 224, in __call__
+    res = self._callback(*self._args, **self._kwargs)
+  File "/home/mk/anaconda3/envs/ma/lib/python3.10/multiprocessing/util.py", line 133, in _remove_temp_dir
+    rmtree(tempdir)
+  File "/home/mk/anaconda3/envs/ma/lib/python3.10/shutil.py", line 731, in rmtree
+    onerror(os.rmdir, path, sys.exc_info())
+  File "/home/mk/anaconda3/envs/ma/lib/python3.10/shutil.py", line 729, in rmtree
+    os.rmdir(path)
+OSError: [Errno 39] Directory not empty: '/tmp/pymp-reny1kg9'

@@ -105,6 +105,9 @@ class World(object):
         self.humans = []
         self.robots = []
 
+        self.repulsive_magnitude = 0.1
+        self.repulsive_range = 0.3
+
     # return all entities in the world
     @property
     def entities(self):
@@ -121,7 +124,7 @@ class World(object):
         return [agent for agent in self.agents if agent.action_callback is not None]
 
     # update state of the world
-    def step(self):
+    def step(self, apply_forces=True):
         # set actions for scripted agents 
         for agent in self.scripted_agents:
             agent.action = agent.action_callback(agent, self)
@@ -134,7 +137,8 @@ class World(object):
         # apply repulsive field forces
         p_force = self.apply_repulsive_force(p_force) # MINE
         # integrate physical state
-        self.integrate_state(p_force)
+        if apply_forces:
+            self.integrate_state(p_force)
         # update agent state
         for agent in self.agents:
             self.update_agent_state(agent)
@@ -164,7 +168,7 @@ class World(object):
                     p_force[b] = f_b + p_force[b]        
         return p_force
     
-    def apply_repulsive_force(self, p_force, herd_radius=0.7, repulsion_k=1):
+    def apply_repulsive_force(self, p_force):
         robot_locs = np.array([x.state.p_pos for x in self.robots])
         human_locs = np.array([x.state.p_pos for x in self.humans])
 
@@ -173,15 +177,17 @@ class World(object):
 
             # close robots repell
             force = np.array([0.0, 0.0])
-            close_robots = np.linalg.norm(away_vecs, axis=-1) < herd_radius
+            close_robots = np.linalg.norm(away_vecs, axis=-1) < self.repulsive_range
 
-            # if any robot is close, repell from them. Else, random/no movement
-            for away_vec in away_vecs[close_robots]:
-                magnitude = np.linalg.norm(away_vec)
-                away_unit = away_vec/magnitude
-                force += repulsion_k * away_unit/(magnitude**2)
-            # else:
-            #     pass
+            # if any robot is close, repell from them. Else, random/no movement/move towards center
+            if np.any(close_robots):
+                for away_vec in away_vecs[close_robots]:
+                    magnitude = np.linalg.norm(away_vec)
+                    away_unit = away_vec/magnitude
+                    force += self.repulsive_magnitude * away_unit/(magnitude**2)
+            else:
+                towards_c = -pos/np.linalg.norm(pos)
+                force = 0.1 * towards_c
             p_force[i] += force
 
         return p_force

@@ -77,7 +77,7 @@ class MultiAgentEnv(gym.Env):
             self.viewers = [None] * self.n
         self._reset_render()
 
-    def step(self, action_n):
+    def step(self, action_n, apply_forces=True):
         obs_n = []
         reward_n = []
         done_n = []
@@ -87,7 +87,7 @@ class MultiAgentEnv(gym.Env):
         for i, agent in enumerate(self.agents):
             self._set_action(action_n[i], agent, self.action_space[i])
         # advance world state
-        self.world.step()
+        self.world.step(apply_forces=apply_forces)
         # record observation for each agent
         for agent in self.agents:
             obs_n.append(self._get_obs(agent))

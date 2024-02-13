@@ -18,20 +18,22 @@ def train_epoch(model, dloader, *, opt, epoch, loss_fn, progress=True):
     train_loss = 0
     total_examples = 0
 
+    batch = next(iter(dloader))
+
     progress = tqdm if progress else lambda x, **kwargs: x
-    for batch in progress(dloader, desc=f'[Epoch {epoch:03d}] training', total=len(dloader)):
-        batch = batch.cuda()
-        x, edge_idx, y, mask = batch.x, batch.edge_index, batch.y, batch.robot_mask
-        opt.zero_grad()
+    # for batch in progress(dloader, desc=f'[Epoch {epoch:03d}] training', total=len(dloader)):
+    batch = batch.cuda()
+    x, edge_idx, y, mask = batch.x, batch.edge_index, batch.y, batch.robot_mask
+    opt.zero_grad()
 
-        out = model(x, edge_idx).squeeze()
+    out = model(x, edge_idx).squeeze()
 
-        # get loss and update model
-        batch_loss = loss_fn(out[mask], y)
-        batch_loss.backward()
-        opt.step()
-        train_loss += batch_loss.item() * batch.num_graphs
-        total_examples += batch.num_graphs
+    # get loss and update model
+    batch_loss = loss_fn(out[mask], y)
+    batch_loss.backward()
+    opt.step()
+    train_loss += batch_loss.item() * batch.num_graphs
+    total_examples += batch.num_graphs
 
     return train_loss/total_examples
 
@@ -40,8 +42,7 @@ def test_epoch(model, dloader, *, epoch, progress=False):
     model.eval()
     scores = []
 
-    if epoch % 10 == 0:
-        pass
+    # batch = next(iter(dloader))
 
     progress = tqdm if progress else lambda x, **kwargs: x
     for batch in progress(dloader, desc=f'[Epoch {epoch:03d}] testing', total=len(dloader)):
@@ -53,23 +54,27 @@ def test_epoch(model, dloader, *, epoch, progress=False):
         score = mse(out[mask].cpu().numpy(), y.cpu().numpy())
         scores.append(score)
 
-    return np.mean(scores)
+        return np.mean(scores)
 
 def main():
-    epochs = 10000
-    batch_sizes = 16, 16
-    learning_rate = 0.001
+    epochs = 1000
+    batch_sizes = 1, 1
+    learning_rate = 0.0001
 
     torch.cuda.empty_cache()
 
-    run_path = MODEL_PATH/time_label()
+    data_seed = 1691
+    data_folder = f'spline_i-{data_seed}'
+
+    run_path = MODEL_PATH/f'{time_label()}-{data_seed}'
     run_path.mkdir()
 
     train_loader, test_loader = series_dloaders(
-        'spline_i-5673',
-        chunks=((0, 4000), (4000, 5000)),
+        data_folder,
+        chunks=((0, 80), (80, 100)),
         batch_sizes=batch_sizes,
-        shuffles=(True, True)
+        shuffles=(True, True),
+        timeseries_samplerate=5
     )
 
     model = ActionNet(heads=32, concat=False).cuda()

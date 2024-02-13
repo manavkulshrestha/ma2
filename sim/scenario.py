@@ -59,7 +59,7 @@ def linear_scenario(scene_len=1000, render=True,
 
 def spline_scenario(scene_len=1000, render=True,
                     human_rng=(7,10), robot_rng=(7,10), goal_rng=(0,1),
-                    display_spline_idx=None):
+                    display_spline_idx=None, verbose=False):
     num_humans, num_robots, num_goals = np.random.randint(*np.vstack([human_rng, robot_rng, goal_rng]).T)
     env = make_env('simple_herding', benchmark=False,
                 num_humans=num_humans, num_robots=num_robots, num_goals=num_goals)
@@ -83,11 +83,14 @@ def spline_scenario(scene_len=1000, render=True,
     for i in range(scene_len):
         # action space is [x,y] where 0 <= x,y <= 1
         # if human has reached target, update it, move towards target
-        targ_h = update_targets(targ_h, done_h)
-        ctrl_h, done_h = move_humans(env.world, targ_h)
-        act_n[:num_humans] = ctrl_h
+        # targ_h = update_targets(targ_h, done_h)
+        # ctrl_h, done_h = move_humans(env.world, targ_h)
+        # act_n[:num_humans] = ctrl_h
 
         # if robot has reached target, update it, move towards target
+        if verbose:
+            print(i)
+            
         ctrl_r, _ = move_robots(env.world, path_r[:,:,i])
         act_n[num_humans:] = ctrl_r
 
