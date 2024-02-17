@@ -59,7 +59,7 @@ def test_epoch(model, dloader, *, epoch, progress=False):
 def main():
     epochs = 1000
     batch_sizes = 1, 1
-    learning_rate = 0.0001
+    learning_rate = 0.001
 
     torch.cuda.empty_cache()
 
