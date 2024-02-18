@@ -51,12 +51,13 @@ def preprocess(timeseries, skip_val):
     )
 
 def temporal_graph(graph_list):
+    node_feats = torch.cat([graph_list[0].x]+[g.pos for g in graph_list], dim=-1)
+
     list_graph = Data(
-        x = graph_list[0].x, # would need to change when objects added
+        x = node_feats,
         y = torch.cat([g.y for g in graph_list], dim=-1),
         edge_index = graph_list[0].edge_index,
         edge_attr = torch.cat([g.edge_attr for g in graph_list], dim=-1),
-        pos = torch.cat([g.pos for g in graph_list], dim=-1),
         robot_mask=graph_list[0].robot_mask
     )
 
@@ -81,13 +82,15 @@ def get_graph(state, vel_mu, vel_sigma, act_mu, act_sigma, num_robots, num_agent
     e_idx = fully_connected(num_agents)
     feats = torch.cat((disp, dist.unsqueeze(-1)), dim=-1)
 
+    # TODO. pred y should be in the middle of the window. Odd window size. predict action to take given result and prior state
+
     graph = Data(
         x = robot_mask.float().reshape(-1, 1), # would need to change when objects added
-        y = torch.tensor(act),
-        edge_index = e_idx,
-        edge_attr = feats[tuple(e_idx)],
-        pos = torch.tensor(vel),
-        robot_mask=robot_mask
+        y = torch.tensor(act).float(),
+        edge_index = e_idx.long(),
+        edge_attr = feats[tuple(e_idx)].float(),
+        pos = torch.tensor(vel).float(),
+        robot_mask=robot_mask.bool()
     )
     
     return graph

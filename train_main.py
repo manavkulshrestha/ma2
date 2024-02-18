@@ -6,11 +6,12 @@ from torch.nn import BCEWithLogitsLoss, NLLLoss, MSELoss
 import numpy as np
 
 from data.datasets import series_dloaders
-from nn.networks import ActionNet
+from nn.networks import ANet
 from sim.utility import time_label
 
 
 MODEL_PATH = Path('models')
+# torch.set_default_dtype(torch.float64)
 
 
 def train_epoch(model, dloader, *, opt, epoch, loss_fn, progress=True):
@@ -27,12 +28,14 @@ def train_epoch(model, dloader, *, opt, epoch, loss_fn, progress=True):
 
     opt.zero_grad()
 
-    out = model(x.float(), e_idx, e_atr).squeeze()
+    out = model(x, e_idx, e_atr)
 
     # get loss and update model
-    batch_loss = loss_fn(out[mask], y)
+    batch_loss = loss_fn(out.reshape(-1, 2)[mask], y[:,-2:])
+
     batch_loss.backward()
     opt.step()
+
     train_loss += batch_loss.item() * batch.num_graphs
     total_examples += batch.num_graphs
 
@@ -50,9 +53,9 @@ def test_epoch(model, dloader, *, epoch, progress=False):
         batch = batch.cuda()
         x, e_idx, e_atr, y, mask = batch.x, batch.edge_index, batch.edge_attr, batch.y, batch.robot_mask
 
-        out = model(x.float(), e_idx, e_atr).squeeze()
+        out = model(x, e_idx, e_atr)
         
-        score = mse(out[mask].cpu().numpy(), y.cpu().numpy())
+        score = mse(out.reshape(-1, 2)[mask].cpu().numpy(), y[:,-2:].cpu().numpy())
         scores.append(score)
 
         return np.mean(scores)
@@ -61,6 +64,7 @@ def main():
     epochs = 1000
     batch_sizes = 1, 1
     learning_rate = 0.001
+    tss_rate, window_len = 5, 7
 
     torch.cuda.empty_cache()
 
@@ -75,15 +79,20 @@ def main():
         chunks=((0, 80), (80, 100)),
         batch_sizes=batch_sizes,
         shuffles=(True, True),
-        timeseries_samplerate=5
+        timeseries_samplerate=tss_rate,
+        window_len=window_len
     )
 
-    model = ActionNet(heads=32, concat=False).cuda()
+    model = ANet(1+2*window_len, 3*window_len, heads=32, concat=False).cuda()
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 
     best_score = np.inf
 
     for epoch in range(1, epochs):
+
+        if epoch == 100:
+            print()
+
         train_loss = train_epoch(model, train_loader, opt=optimizer, epoch=epoch, loss_fn=MSELoss())
         test_mse = test_epoch(model, test_loader, epoch=epoch)
 
