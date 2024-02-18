@@ -50,7 +50,19 @@ def preprocess(timeseries, skip_val):
         timeseries_downsampled
     )
 
-def get_graph(states, vel_mu, vel_sigma, act_mu, act_sigma, num_robots, num_agents, normalize=True):
+def temporal_graph(graph_list):
+    list_graph = Data(
+        x = graph_list[0].x, # would need to change when objects added
+        y = torch.cat([g.y for g in graph_list], dim=-1),
+        edge_index = graph_list[0].edge_index,
+        edge_attr = torch.cat([g.edge_attr for g in graph_list], dim=-1),
+        pos = torch.cat([g.pos for g in graph_list], dim=-1),
+        robot_mask=graph_list[0].robot_mask
+    )
+
+    return list_graph
+
+def get_graph(state, vel_mu, vel_sigma, act_mu, act_sigma, num_robots, num_agents, normalize=True):
     '''
     normalizes action and velocity
     calculates pairwise displacement vectors
@@ -70,7 +82,7 @@ def get_graph(states, vel_mu, vel_sigma, act_mu, act_sigma, num_robots, num_agen
     feats = torch.cat((disp, dist.unsqueeze(-1)), dim=-1)
 
     graph = Data(
-        x = robot_mask, # would need to change when objects added
+        x = robot_mask.float().reshape(-1, 1), # would need to change when objects added
         y = torch.tensor(act),
         edge_index = e_idx,
         edge_attr = feats[tuple(e_idx)],
@@ -79,17 +91,6 @@ def get_graph(states, vel_mu, vel_sigma, act_mu, act_sigma, num_robots, num_agen
     )
     
     return graph
-
-def temporal_graph(graph_list):
-    return Data(
-        x = graph_list[0].x
-        y = torch.cat([g.y for g in graph_list], -1)
-        edge_index = torch.cat([g.edge_index for g in graph_list], dim=-1)# better to just make it together in the first place. edge_index and attr are transed
-        edge_attr = torch.cat([g.edge_attr for g in graph_list], dim=-1)# better to just make it together in the first place. edge_index and attr are transed
-        pos = torch.cat([g.pos for g in graph_list], dim=-1)
-        robot_mask = graph_list[0].robot_mask
-    )
-    pass
 
 
 class SeriesDataset(InMemoryDataset):

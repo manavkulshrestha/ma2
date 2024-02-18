@@ -23,10 +23,11 @@ def train_epoch(model, dloader, *, opt, epoch, loss_fn, progress=True):
     progress = tqdm if progress else lambda x, **kwargs: x
     # for batch in progress(dloader, desc=f'[Epoch {epoch:03d}] training', total=len(dloader)):
     batch = batch.cuda()
-    x, edge_idx, y, mask = batch.x, batch.edge_index, batch.y, batch.robot_mask
+    x, e_idx, e_atr, y, mask = batch.x, batch.edge_index, batch.edge_attr, batch.y, batch.robot_mask
+
     opt.zero_grad()
 
-    out = model(x, edge_idx).squeeze()
+    out = model(x.float(), e_idx, e_atr).squeeze()
 
     # get loss and update model
     batch_loss = loss_fn(out[mask], y)
@@ -47,9 +48,9 @@ def test_epoch(model, dloader, *, epoch, progress=False):
     progress = tqdm if progress else lambda x, **kwargs: x
     for batch in progress(dloader, desc=f'[Epoch {epoch:03d}] testing', total=len(dloader)):
         batch = batch.cuda()
-        x, edge_idx, y, mask = batch.x, batch.edge_index, batch.y, batch.robot_mask
+        x, e_idx, e_atr, y, mask = batch.x, batch.edge_index, batch.edge_attr, batch.y, batch.robot_mask
 
-        out = model(x.float(), edge_idx).squeeze()
+        out = model(x.float(), e_idx, e_atr).squeeze()
         
         score = mse(out[mask].cpu().numpy(), y.cpu().numpy())
         scores.append(score)
