@@ -26,7 +26,8 @@ def preprocess(timeseries, skip_val):
     '''
     modifies timeseries dicts to add action_sum,
     downsamples timeseries by skip_val,
-    calculates normalization values for vel and act'''
+    calculates normalization values for vel and act
+    '''
     vels, acts = [], []
     timeseries_downsampled = []
 

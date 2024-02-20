@@ -6,7 +6,7 @@ from torch.nn import BCEWithLogitsLoss, NLLLoss, MSELoss
 import numpy as np
 
 from data.datasets import series_dloaders
-from nn.networks import ANet
+from nn.networks import ANet, LearnedSimulator
 from sim.utility import time_label
 
 
@@ -31,7 +31,9 @@ def train_epoch(model, dloader, *, opt, epoch, loss_fn, progress=True):
     out = model(x, e_idx, e_atr)
 
     # get loss and update model
-    batch_loss = loss_fn(out.reshape(-1, 2)[mask], y[:,-2:])
+    # 0 1 2 3 4 5 6 7 8 9 10 11 12 13 
+    mid = y.shape[1]//2
+    batch_loss = loss_fn(out.reshape(-1, 2)[mask], y[:,mid-1:mid+1])
 
     batch_loss.backward()
     opt.step()
@@ -83,7 +85,8 @@ def main():
         window_len=window_len
     )
 
-    model = ANet(1+2*window_len, 3*window_len, heads=32, concat=False).cuda()
+    # model = ANet(1+2*window_len, 3*window_len, heads=32, concat=False).cuda()
+    model = LearnedSimulator(1+2*window_len, 3*window_len, heads=32, concat=False).cuda()
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 
     best_score = np.inf
