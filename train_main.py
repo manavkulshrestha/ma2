@@ -11,8 +11,10 @@ from sim.utility import time_label
 
 
 MODEL_PATH = Path('models')
-# torch.set_default_dtype(torch.float64)
 
+
+def extract_targets(y):
+    return y[:, -2:-1]
 
 def train_epoch(model, dloader, *, opt, epoch, loss_fn, progress=True):
     model.train()
@@ -32,8 +34,7 @@ def train_epoch(model, dloader, *, opt, epoch, loss_fn, progress=True):
 
     # get loss and update model
     # 0 1 2 3 4 5 6 7 8 9 10 11 12 13 
-    mid = y.shape[1]//2
-    batch_loss = loss_fn(out.reshape(-1, 2)[mask], y[:,mid-1:mid+1])
+    batch_loss = loss_fn(out.reshape(-1, 2)[mask], extract_targets(y))
 
     batch_loss.backward()
     opt.step()
@@ -57,7 +58,7 @@ def test_epoch(model, dloader, *, epoch, progress=False):
 
         out = model(x, e_idx, e_atr)
         
-        score = mse(out.reshape(-1, 2)[mask].cpu().numpy(), y[:,-2:].cpu().numpy())
+        score = mse(out.reshape(-1, 2)[mask].cpu().numpy(), extract_targets(y).cpu().numpy())
         scores.append(score)
 
         return np.mean(scores)
@@ -86,7 +87,7 @@ def main():
     )
 
     # model = ANet(1+2*window_len, 3*window_len, heads=32, concat=False).cuda()
-    model = LearnedSimulator(1+2*window_len, 3*window_len, heads=32, concat=False).cuda()
+    model = LearnedSimulator().cuda()
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 
     best_score = np.inf

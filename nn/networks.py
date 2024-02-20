@@ -1,4 +1,5 @@
 import math
+import torch_geometric as pyg
 from torch_geometric.nn import GATv2Conv
 from torch.nn import Module, LogSoftmax, LeakyReLU, BCEWithLogitsLoss, Linear
 import torch
@@ -97,11 +98,11 @@ class LearnedSimulator(torch.nn.Module):
         self,
         hidden_size=128,
         n_mp_layers=10,                                                           # number of GNN layers
-        num_particle_types=9,
+        num_particle_types=1,
         particle_type_dim=16,                                                     # embedding dimension of particle types
         dim=2,                                                                    # dimension of the world, typical 2D or 3D
-        window_size=5,                                                            # the model looks into W frames before the frame to be predicted
-        heads = 3                                                                 # number of attention heads in GAT and EGAT
+        window_size=7,                                                            # the model looks into W frames before the frame to be predicted
+        # heads = 3                                                                 # number of attention heads in GAT and EGAT
     ):
         super().__init__()
         self.window_size = window_size
