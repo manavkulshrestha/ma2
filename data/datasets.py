@@ -12,7 +12,10 @@ from itertools import islice
 
 from sim.utility import sliding, chunked, load_pkl, pdisp
 
+
+CURR_IDX = -2
 DATA_PATH = Path('data')
+
 
 def fully_connected(num_nodes):
     nodes = torch.arange(num_nodes)
@@ -51,25 +54,7 @@ def preprocess(timeseries, skip_val):
         timeseries_downsampled
     )
 
-def temporal_graph(graph_list):
-    # node_feats = torch.cat([graph_list[0].x]+[g.pos for g in graph_list], dim=-1)
-    node_feats = torch.cat([g.pos for g in graph_list], dim=-1)
-    edge_feats = torch.cat([g.edge_attr for g in graph_list], dim=-1)
-    node_dists = torch.cat([g.node_dist for g in graph_list], dim=-1)
-
-    list_graph = Data(
-        x = graph_list[0].x,
-        y = torch.cat([g.y for g in graph_list], dim=-1),
-        edge_index = graph_list[0].edge_index,
-        edge_attr = edge_feats,
-        node_dist = node_dists.numpy(),
-        pos = node_feats,
-        robot_mask=graph_list[0].robot_mask
-    )
-
-    return list_graph
-
-def get_graph(state, vel_mu, vel_sigma, act_mu, act_sigma, num_robots, num_agents, normalize=True):
+def get_graph(state, vel_mu, vel_sigma, act_mu, act_sigma, *, num_humans, num_robots, num_agents, normalize=True):
     '''
     normalizes action and velocity
     calculates pairwise displacement vectors
@@ -84,23 +69,41 @@ def get_graph(state, vel_mu, vel_sigma, act_mu, act_sigma, num_robots, num_agent
     disp = torch.tensor(pdisp(pos))
     dist = torch.norm(disp, dim=-1, keepdim=True)
 
-    robot_mask = torch.tensor(np.arange(num_agents) < num_robots)
+    robot_mask = torch.tensor(np.arange(num_agents) >= num_humans) # FIXX TODO TODO
     e_idx = fully_connected(num_agents)
-    feats = torch.cat((disp, dist), dim=-1)
+    feats = torch.cat((disp, dist), dim=-1)[tuple(e_idx)]
 
     # TODO. pred y should be in the middle of the window. Odd window size. predict action to take given result and prior state
 
     graph = Data(
-        x = robot_mask.reshape(-1, 1).float(), # would need to change when objects, torch.nn.embedding
+        x = robot_mask.long(), # would need to change when objects, torch.nn.embedding
         y = torch.tensor(act).float(),
         edge_index = e_idx.long(),
-        edge_attr = feats[tuple(e_idx)].float(),
-        node_dist = dist.float(),
+        edge_attr = feats.float(),
+        node_dist = feats[:,-1].float(),
         pos = torch.tensor(vel).float(),
         robot_mask=robot_mask.bool()
     )
     
     return graph
+
+def temporal_graph(graph_list):
+    # node_feats = torch.cat([graph_list[0].x]+[g.pos for g in graph_list], dim=-1)
+    node_feats = torch.cat([g.pos for g in graph_list], dim=-1)
+    edge_feats = torch.cat([g.edge_attr for g in graph_list], dim=-1)
+    node_dists = graph_list[CURR_IDX].node_dist.reshape(-1,1)
+
+    list_graph = Data(
+        x = graph_list[0].x,
+        y = torch.cat([g.y for g in graph_list], dim=-1),
+        edge_index = graph_list[0].edge_index,
+        edge_attr = edge_feats,
+        node_dist = node_dists,
+        pos = node_feats,
+        robot_mask=graph_list[0].robot_mask
+    )
+
+    return list_graph
 
 
 class SeriesDataset(InMemoryDataset):
@@ -125,11 +128,11 @@ class SeriesDataset(InMemoryDataset):
         paths = sorted(self.root.iterdir())[start:end]
         for path in tqdm(paths, desc=f'Processing'):
             file_data = load_pkl(path)
-            num_robots, num_humans = file_data['num_robots'], file_data['num_humans']
-            num_agents = num_robots+num_humans
+            nr, nh = file_data['num_robots'], file_data['num_humans']
+            na = nr+nh
 
             vel_ms, act_ms, ts = preprocess(file_data['timeseries'], self.tss_rate)
-            ts = [get_graph(s, *vel_ms, *act_ms, num_robots, num_agents) for i, s in ts]
+            ts = [get_graph(s, *vel_ms, *act_ms, num_humans=nh, num_robots=nr, num_agents=na) for i, s in ts]
             for window in chunked(ts, self.window_len):
                 data_list.append(temporal_graph(window)) # window is list of graphs, function to combine graphs
 

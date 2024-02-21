@@ -85,8 +85,12 @@ class IntConv(pyg.nn.MessagePassing): # SchInteractionNetwork class
         x = self.lin_edge(x)
         return x
 
-    def aggregate(self, inputs, index, node_dist, dim_size=None):
+    def aggregate(self, inputs, index, node_dist, dim_size=None): # this node dist only needs to be current node dists, not window
+        # out = torch_scatter.scatter(torch.mul(inputs, node_dist), index, dim=self.node_dim, dim_size=dim_size, reduce="sum")
         out = torch_scatter.scatter(torch.mul(inputs, node_dist), index, dim=self.node_dim, dim_size=dim_size, reduce="sum")
+        # inputs = 289x129 and node_dist = 289. probably just want to weigh each row by node_dist since they're arranged in same order. output same as inputs
+        # scatter whats input.shape == index.shape, maybe it wants inputs.shape == out.shape
+        
         return (inputs, out)
 
 
@@ -98,8 +102,8 @@ class LearnedSimulator(torch.nn.Module):
         self,
         hidden_size=128,
         n_mp_layers=10,                                                           # number of GNN layers
-        num_particle_types=1,
-        particle_type_dim=16,                                                     # embedding dimension of particle types
+        num_particle_types=2,
+        particle_type_dim=7,                                                      # embedding dimension of particle types
         dim=2,                                                                    # dimension of the world, typical 2D or 3D
         window_size=7,                                                            # the model looks into W frames before the frame to be predicted
         # heads = 3                                                                 # number of attention heads in GAT and EGAT
@@ -107,8 +111,8 @@ class LearnedSimulator(torch.nn.Module):
         super().__init__()
         self.window_size = window_size
         self.embed_type = torch.nn.Embedding(num_particle_types, particle_type_dim)
-        self.node_in = MLP(particle_type_dim + dim * (window_size + 2), hidden_size, hidden_size, 3)
-        self.edge_in = MLP(dim + 1, hidden_size, hidden_size, 3)
+        self.node_in = MLP(particle_type_dim + dim * window_size, hidden_size, hidden_size, 3)
+        self.edge_in = MLP(window_size * (dim+1), hidden_size, hidden_size, 3)
         self.node_out = MLP(hidden_size, hidden_size, dim, 3, layernorm=False)
         self.n_mp_layers = n_mp_layers
         if gnn_type == "SchInteractionNetwork":
@@ -135,11 +139,12 @@ class LearnedSimulator(torch.nn.Module):
         # pre-processing
         # node feature: combine categorial feature data.x and contiguous feature data.pos.
         node_feature = torch.cat((self.embed_type(data.x), data.pos), dim=-1)
-        node_feature = self.node_in(node_feature)
+        node_feature = self.node_in(node_feature) #TODO review and fix layer sizes as per features
         edge_feature = self.edge_in(data.edge_attr)
         # stack of GNN layers
         for i in range(self.n_mp_layers):
             if gnn_type == "SchInteractionNetwork":
+                # nd = torch.tensor(data.node_dist).T.cuda() # N_a X N_a x window_len. curr is at pos -2
                 node_feature, edge_feature = self.layers[i](node_feature, data.edge_index, edge_feature=edge_feature, node_dist=data.node_dist)
             # elif gnn_type == "GatNetwork":
             #     node_feature = self.layers[i](node_feature, data.edge_index)

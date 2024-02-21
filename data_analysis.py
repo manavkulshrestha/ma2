@@ -7,6 +7,14 @@ from sim.make_env import make_env
 from sim.utility import load_pkl, sliding
 
 
+def old_comparision():
+    old = load_pkl('data/spline_i-5673/24-01-22-14254165')['timeseries'] # old
+    # new = load_pkl('data/spline_i-5700/24-02-02-13280766')['timeseries'] # new
+    # new = load_pkl('data/spline_i-5700/24-02-02-13283522')['timeseries'] # new
+
+    visual_comparision(old, 250, 251)
+    diff_analysis(old, stride=1)
+
 def visualize(h_state, r_state):
     env = make_env('simple_herding', benchmark=False,
                    num_humans=len(h_state), num_robots=len(r_state), num_goals=0)
@@ -60,12 +68,8 @@ def diff_analysis(data, stride=1):
 
 
 def main():
-    old = load_pkl('data/spline_i-5673/24-01-22-14254165')['timeseries'] # old
-    # new = load_pkl('data/spline_i-5700/24-02-02-13280766')['timeseries'] # new
-    # new = load_pkl('data/spline_i-5700/24-02-02-13283522')['timeseries'] # new
+   
 
-    visual_comparision(old, 250, 251)
-    diff_analysis(old, stride=1)
 
 if __name__ == '__main__':
     main()
