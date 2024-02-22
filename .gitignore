@@ -4,4 +4,5 @@ __pycache__/
 data/*
 !data/datacollection.py
 !data/datasets.py
+tblogs/*
 models/*

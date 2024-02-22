@@ -125,7 +125,7 @@ class SeriesDataset(InMemoryDataset):
         data_list = []
 
         start, end = self.chunk
-        paths = sorted(self.root.iterdir())[start:end]
+        paths = list(filter(lambda p: p.is_file(), sorted(self.root.iterdir())[start:end]))
         for path in tqdm(paths, desc=f'Processing'):
             file_data = load_pkl(path)
             nr, nh = file_data['num_robots'], file_data['num_humans']
