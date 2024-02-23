@@ -1,10 +1,9 @@
 import math
 import torch_geometric as pyg
-from torch_geometric.nn import GATv2Conv
+from torch_geometric.nn import GATv2Conv, MLP
 from torch.nn import Module, LogSoftmax, LeakyReLU, BCEWithLogitsLoss, Linear
 import torch
 import torch_scatter
-
 
 # class ActionNet(Module):
 #     def __init__(self, heads=32, concat=False):
@@ -35,32 +34,32 @@ import torch_scatter
 #         return x
 
 
-class MLP(torch.nn.Module):
-    """Multi-Layer perceptron"""
-    def __init__(self, input_size, hidden_size, output_size, layers, layernorm=True):
-        super().__init__()
-        self.layers = torch.nn.ModuleList()
-        for i in range(layers):
-            self.layers.append(torch.nn.Linear(
-                input_size if i == 0 else hidden_size,
-                output_size if i == layers - 1 else hidden_size,
-            ))
-            if i != layers - 1:
-                self.layers.append(torch.nn.ReLU())
-        if layernorm:
-            self.layers.append(torch.nn.LayerNorm(output_size))
-        self.reset_parameters()
+# class MLP(torch.nn.Module):
+#     """Multi-Layer perceptron"""
+#     def __init__(self, input_size, hidden_size, output_size, layers, layernorm=True):
+#         super().__init__()
+#         self.layers = torch.nn.ModuleList()
+#         for i in range(layers):
+#             self.layers.append(torch.nn.Linear(
+#                 input_size if i == 0 else hidden_size,
+#                 output_size if i == layers - 1 else hidden_size,
+#             ))
+#             if i != layers - 1:
+#                 self.layers.append(torch.nn.ReLU())
+#         if layernorm:
+#             self.layers.append(torch.nn.LayerNorm(output_size))
+#         self.reset_parameters()
 
-    def reset_parameters(self):
-        for layer in self.layers:
-            if isinstance(layer, torch.nn.Linear):
-                layer.weight.data.normal_(0, 1 / math.sqrt(layer.in_features))
-                layer.bias.data.fill_(0)
+#     def reset_parameters(self):
+#         for layer in self.layers:
+#             if isinstance(layer, torch.nn.Linear):
+#                 layer.weight.data.normal_(0, 1 / math.sqrt(layer.in_features))
+#                 layer.bias.data.fill_(0)
 
-    def forward(self, x):
-        for layer in self.layers:
-            x = layer(x)
-        return x
+#     def forward(self, x):
+#         for layer in self.layers:
+#             x = layer(x)
+#         return x
 
 class IntConv(pyg.nn.MessagePassing): # SchInteractionNetwork class
     """Interaction Network as proposed in this paper: 
@@ -70,8 +69,8 @@ class IntConv(pyg.nn.MessagePassing): # SchInteractionNetwork class
     
     def __init__(self, hidden_size, layers):
         super().__init__()
-        self.lin_edge = MLP(hidden_size * 3, hidden_size, hidden_size, layers)
-        self.lin_node = MLP(hidden_size * 2, hidden_size, hidden_size, layers)
+        self.lin_edge = MLP(in_channels=hidden_size*3, hidden_channels=hidden_size, out_channels=hidden_size, num_layers=layers, act=LeakyReLU(), dropout=0)
+        self.lin_node = MLP(in_channels=hidden_size*2, hidden_channels=hidden_size, out_channels=hidden_size, num_layers=layers, act=LeakyReLU(), dropout=0)
 
     def forward(self, x, edge_index, edge_feature, node_dist):
         edge_out, aggr = self.propagate(edge_index, x=(x, x), edge_feature=edge_feature, node_dist=node_dist)
@@ -109,11 +108,16 @@ class LearnedSimulator(torch.nn.Module):
         # heads = 3                                                                 # number of attention heads in GAT and EGAT
     ):
         super().__init__()
+
+        node_dim = particle_type_dim+(dim*window_size) # agent embedding size and vxel,vely, window size
+        edge_dim = window_size*(dim+1) # dim for dispx,dispy and +1 for dist, window size 
+
         self.window_size = window_size
         self.embed_type = torch.nn.Embedding(num_particle_types, particle_type_dim)
-        self.node_in = MLP(particle_type_dim + dim * window_size, hidden_size, hidden_size, 3)
-        self.edge_in = MLP(window_size * (dim+1), hidden_size, hidden_size, 3)
-        self.node_out = MLP(hidden_size, hidden_size, dim, 3, layernorm=False)
+        self.node_in = MLP(in_channels=node_dim, hidden_channels=hidden_size, out_channels=hidden_size, num_layers=3, act=LeakyReLU(), dropout=0)
+        self.edge_in = MLP(in_channels=edge_dim, hidden_channels=hidden_size, out_channels=hidden_size, num_layers=3, act=LeakyReLU(), dropout=0)
+        self.node_out = MLP(in_channels=hidden_size, hidden_channels=hidden_size, out_channels=dim, num_layers=3, act=LeakyReLU(), dropout=0)
+
         self.n_mp_layers = n_mp_layers
         if gnn_type == "SchInteractionNetwork":
           self.layers = torch.nn.ModuleList([IntConv(

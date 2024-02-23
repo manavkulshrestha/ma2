@@ -49,12 +49,12 @@ def preprocess(timeseries, skip_val):
     acts_stacked = np.vstack(acts)
 
     return (
-        (vels_stacked.mean(axis=0), vels_stacked.std(axis=0)),
-        (acts_stacked.mean(axis=0), acts_stacked.std(axis=0)),
+        (vels_stacked.mean(), vels_stacked.std()), (vels_stacked.min(), vels_stacked.max()),
+        (acts_stacked.mean(), acts_stacked.std()), (acts_stacked.min(), acts_stacked.max()),
         timeseries_downsampled
     )
 
-def get_graph(state, vel_mu, vel_sigma, act_mu, act_sigma, *, num_humans, num_robots, num_agents, normalize=True):
+def get_graph(state, vel_mu, vel_sigma, vel_min, vel_max, act_mu, act_sigma, act_min, act_max, *, num_humans, num_robots, num_agents, normalize=True):
     '''
     normalizes action and velocity
     calculates pairwise displacement vectors
@@ -63,8 +63,11 @@ def get_graph(state, vel_mu, vel_sigma, act_mu, act_sigma, *, num_humans, num_ro
     (pos, vel), act = np.hsplit(states, 2), state['r_action_sum']
 
     if normalize: # normalization is agent agnostic using timeseries mean
-        vel = (vel-vel_mu)/vel_sigma
-        act = (act-act_mu)/act_sigma
+        # vel = (vel-vel_mu)/vel_sigma
+        vel = (vel-vel_min)/(vel_max-vel_min)
+
+        # act = (act-act_mu)/act_sigma
+        act = (act-act_min)/(act_max-act_min)
 
     disp = torch.tensor(pdisp(pos))
     dist = torch.norm(disp, dim=-1, keepdim=True)
@@ -107,12 +110,14 @@ def temporal_graph(graph_list):
 
 
 class SeriesDataset(InMemoryDataset):
-    def __init__(self, root, *, chunk, tss_rate, window_len,
+    def __init__(self, root, name, *, chunk, tss_rate, window_len, hook={},
                  transform=None, pre_transform=None, pre_filter=None):
         self.chunk = chunk
         self.root = Path(root)
         self.tss_rate = tss_rate
         self.window_len = window_len
+        self.hook = hook
+        self.name = name
 
         super().__init__(root, transform, pre_transform, pre_filter)
         self.data, self.slices = torch.load(self.processed_paths[0])
@@ -126,13 +131,17 @@ class SeriesDataset(InMemoryDataset):
 
         start, end = self.chunk
         paths = list(filter(lambda p: p.is_file(), sorted(self.root.iterdir())[start:end]))
+
+        # get population mu, std, min, max (maybe seperated for train and test) only train should be known
+        # downsample timeseries
+
         for path in tqdm(paths, desc=f'Processing'):
             file_data = load_pkl(path)
             nr, nh = file_data['num_robots'], file_data['num_humans']
             na = nr+nh
 
-            vel_ms, act_ms, ts = preprocess(file_data['timeseries'], self.tss_rate)
-            ts = [get_graph(s, *vel_ms, *act_ms, num_humans=nh, num_robots=nr, num_agents=na) for i, s in ts]
+            vel_ms, vel_mm, act_ms, act_mm, ts = preprocess(file_data['timeseries'], self.tss_rate)
+            ts = [get_graph(s, *vel_ms, *vel_mm, *act_ms, *act_mm, num_humans=nh, num_robots=nr, num_agents=na) for i, s in ts]
             for window in chunked(ts, self.window_len):
                 data_list.append(temporal_graph(window)) # window is list of graphs, function to combine graphs
 
@@ -179,7 +188,8 @@ def series_dloaders(name,
                     batch_sizes=(64, 64),
                     shuffles=(True, True),
                     timeseries_samplerate=1,
-                    window_len=7):
+                    window_len=7,
+                    hook={}):
     # TODO check with normalized features
     # transform = T.Compose(
     #     # T.NormalizeFeatures(),
@@ -187,7 +197,8 @@ def series_dloaders(name,
     # )
     transform = None
 
-    datasets = [SeriesDataset(DATA_PATH/name, chunk=c, transform=transform, window_len=window_len, tss_rate=timeseries_samplerate) for c in chunks]
+    split = zip(['train', 'test'], chunks)
+    datasets = [SeriesDataset(DATA_PATH/name, name=n, chunk=c, hook=hook, transform=transform, window_len=window_len, tss_rate=timeseries_samplerate) for n, c in split]
     loaders = [DataLoader(ds, batch_size=bs, shuffle=s, num_workers=8) for ds, bs, s in zip(datasets, batch_sizes, shuffles)]
 
     return loaders
