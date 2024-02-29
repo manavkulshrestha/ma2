@@ -35,7 +35,7 @@ class Scenario(BaseScenario):
             landmark.collide = False
             landmark.movable = False
             landmark.size = 0.2
-            landmark.color = np.array([0.25, 0.75, 0.25])
+            landmark.color = np.array([0.25, 0.75, 0.25, 0.1])
 
         # make initial conditions
         self.reset_world(world)

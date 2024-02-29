@@ -12,7 +12,7 @@ def move_robots(world, targets, kp=1, kd=1, thresh=0.01):
     ctrl[done] = 0
     world.robots_eprev = errs
 
-    return ctrl, done
+    return ctrl.clip(-1, 1), done
 
 def move_humans(world, targets, kp=1, kd=1, thresh=0.01):
     locs = np.array([x.state.p_pos for x in world.humans])

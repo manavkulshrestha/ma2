@@ -10,12 +10,15 @@ import torch_geometric.transforms as T
 # from scipy.spatial.distance import pdist
 from itertools import islice
 
-from sim.utility import sliding, chunked, load_pkl, pdisp
+from sim.utility import save_pkl, sliding, chunked, load_pkl, pdisp
 
 
 CURR_IDX = -2
 DATA_PATH = Path('data')
 
+
+def all_paths(seed, start=None, end=None):
+    return list(filter(lambda p: p.is_file(), sorted(Path(f'data/spline_i-{seed}').iterdir())[start:end]))
 
 def fully_connected(num_nodes):
     nodes = torch.arange(num_nodes)
@@ -24,35 +27,36 @@ def fully_connected(num_nodes):
 
     return edge_index
 
-
-def preprocess(timeseries, skip_val):
+def downsample(timeseries, skip_val):
     '''
     modifies timeseries dicts to add action_sum,
     downsamples timeseries by skip_val,
     calculates normalization values for vel and act
     '''
-    vels, acts = [], []
+    # vels, acts = [], []
     timeseries_downsampled = []
 
     for i, ts in islice(enumerate(timeseries), 10+skip_val, None, skip_val): # skip first 10 frames
         sum_action = np.array([s['r_actions'] for s in timeseries[i-skip_val:i]]).sum(axis=0)
 
-        pos, vel = np.hsplit(ts['r_state'], 2)
+        # pos, vel = np.hsplit(ts['r_state'], 2)
 
-        vels.append(vel)
-        acts.append(sum_action)
+        # vels.append(vel)
+        # acts.append(sum_action)
 
         ts['r_action_sum'] = sum_action
         timeseries_downsampled.append((i, ts))
 
-    vels_stacked = np.vstack(vels)
-    acts_stacked = np.vstack(acts)
+    # vels_stacked = np.vstack(vels)
+    # acts_stacked = np.vstack(acts)
 
-    return (
-        (vels_stacked.mean(), vels_stacked.std()), (vels_stacked.min(), vels_stacked.max()),
-        (acts_stacked.mean(), acts_stacked.std()), (acts_stacked.min(), acts_stacked.max()),
-        timeseries_downsampled
-    )
+    # return (
+    #     (vels_stacked.mean(), vels_stacked.std()), (vels_stacked.min(), vels_stacked.max()),
+    #     (acts_stacked.mean(), acts_stacked.std()), (acts_stacked.min(), acts_stacked.max()),
+    #     timeseries_downsampled
+    # )
+
+    return timeseries_downsampled
 
 def get_graph(state, vel_mu, vel_sigma, vel_min, vel_max, act_mu, act_sigma, act_min, act_max, *, num_humans, num_robots, num_agents, normalize=True):
     '''
@@ -63,16 +67,16 @@ def get_graph(state, vel_mu, vel_sigma, vel_min, vel_max, act_mu, act_sigma, act
     (pos, vel), act = np.hsplit(states, 2), state['r_action_sum']
 
     if normalize: # normalization is agent agnostic using timeseries mean
-        # vel = (vel-vel_mu)/vel_sigma
-        vel = (vel-vel_min)/(vel_max-vel_min)
+        vel = (vel-vel_mu)/vel_sigma
+        # vel = (vel-vel_min)/(vel_max-vel_min)
 
-        # act = (act-act_mu)/act_sigma
-        act = (act-act_min)/(act_max-act_min)
+        act = (act-act_mu)/act_sigma
+        # act = (act-act_min)/(act_max-act_min)
 
     disp = torch.tensor(pdisp(pos))
     dist = torch.norm(disp, dim=-1, keepdim=True)
 
-    robot_mask = torch.tensor(np.arange(num_agents) >= num_humans) # FIXX TODO TODO
+    robot_mask = torch.tensor(np.arange(num_agents) >= num_humans)
     e_idx = fully_connected(num_agents)
     feats = torch.cat((disp, dist), dim=-1)[tuple(e_idx)]
 
@@ -108,6 +112,49 @@ def temporal_graph(graph_list):
 
     return list_graph
 
+def population_stats(file_paths, skip_val):
+    # vel_min = np.inf
+    # vel_max = -np.inf
+
+    # act_min = np.inf
+    # act_max = -np.inf
+
+    # vel_sum = np.zeros(2)
+    # act_sum = np.zeros(2)
+
+    # count = 0
+
+    vels = []
+    acts = []
+
+    for path in tqdm(file_paths, desc='Calculating Population Stats'):
+        timeseries = load_pkl(path)['timeseries']
+        ts = islice(enumerate(timeseries), 20+skip_val, None, skip_val)
+        for i, t in ts:
+            sum_action = np.array([s['r_actions'] for s in timeseries[i-skip_val:i]]).sum(axis=0)
+            pos, vel = np.hsplit(t['r_state'], 2)
+
+            # vel_sum += vel
+            # act_sum += sum_action
+
+            # vel_min = min(vel_min, *vel)
+            # vel_max = max(vel_max, *vel)
+
+            # act_min = min(act_min, *sum_action)
+            # act_max = max(act_max, *sum_action)
+
+            vels.append(vel)
+            acts.append(sum_action)
+
+    vels_stacked = np.vstack(vels)
+    acts_stacked = np.vstack(acts)
+
+    return (
+        (vels_stacked.mean(), vels_stacked.std()),
+        (vels_stacked.min(), vels_stacked.max()),
+        (acts_stacked.mean(), acts_stacked.std()),
+        (acts_stacked.min(), acts_stacked.max()),
+    )
 
 class SeriesDataset(InMemoryDataset):
     def __init__(self, root, name, *, chunk, tss_rate, window_len, hook={},
@@ -124,7 +171,7 @@ class SeriesDataset(InMemoryDataset):
 
     @property
     def processed_file_names(self):
-        return [f'data_series_dg_{self.root.name}_{self.chunk[0]}-{self.chunk[1]}_{self.tss_rate}.pt']
+        return [f'data_series_dg_{self.root.name}_{self.chunk[0]}-{self.chunk[1]}_{self.tss_rate}_{self.window_len}.pt']
     
     def process_files(self):
         data_list = []
@@ -133,14 +180,18 @@ class SeriesDataset(InMemoryDataset):
         paths = list(filter(lambda p: p.is_file(), sorted(self.root.iterdir())[start:end]))
 
         # get population mu, std, min, max (maybe seperated for train and test) only train should be known
-        # downsample timeseries
+        vel_ms, vel_mm, act_ms, act_mm = population_stats(paths, self.tss_rate)
+        self.hook[f'{self.name}_vel_mm'] = vel_mm
+        self.hook[f'{self.name}_act_mm'] = act_mm
+        self.hook[f'{self.name}_vel_ms'] = vel_ms
+        self.hook[f'{self.name}_act_ms'] = act_ms
 
         for path in tqdm(paths, desc=f'Processing'):
             file_data = load_pkl(path)
             nr, nh = file_data['num_robots'], file_data['num_humans']
             na = nr+nh
 
-            vel_ms, vel_mm, act_ms, act_mm, ts = preprocess(file_data['timeseries'], self.tss_rate)
+            ts = downsample(file_data['timeseries'], self.tss_rate)
             ts = [get_graph(s, *vel_ms, *vel_mm, *act_ms, *act_mm, num_humans=nh, num_robots=nr, num_agents=na) for i, s in ts]
             for window in chunked(ts, self.window_len):
                 data_list.append(temporal_graph(window)) # window is list of graphs, function to combine graphs
@@ -188,8 +239,7 @@ def series_dloaders(name,
                     batch_sizes=(64, 64),
                     shuffles=(True, True),
                     timeseries_samplerate=1,
-                    window_len=7,
-                    hook={}):
+                    window_len=7):
     # TODO check with normalized features
     # transform = T.Compose(
     #     # T.NormalizeFeatures(),
@@ -197,8 +247,18 @@ def series_dloaders(name,
     # )
     transform = None
 
+    metadata = {}
+    path = DATA_PATH/name
     split = zip(['train', 'test'], chunks)
-    datasets = [SeriesDataset(DATA_PATH/name, name=n, chunk=c, hook=hook, transform=transform, window_len=window_len, tss_rate=timeseries_samplerate) for n, c in split]
+
+    datasets = [SeriesDataset(path, name=n, chunk=c, hook=metadata, transform=transform, window_len=window_len, tss_rate=timeseries_samplerate) for n, c in split]
     loaders = [DataLoader(ds, batch_size=bs, shuffle=s, num_workers=8) for ds, bs, s in zip(datasets, batch_sizes, shuffles)]
 
-    return loaders
+    hook_path = path/f'processed/pop_stats-{"_".join(map(str, np.array(chunks).flatten()))}-{window_len}.pkl'
+    if len(metadata):
+        save_pkl(metadata, hook_path)
+    else:
+        metadata = load_pkl(hook_path)
+        assert len(metadata) != 0
+
+    return loaders, metadata

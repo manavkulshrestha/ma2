@@ -16,11 +16,11 @@ from datetime import datetime
 
 
 MODEL_PATH = Path('models')
-seed = np.random.randint(1,10000)
+seed = 42 or np.random.randint(1,10000)
 seed_everything(seed)
 print(f'training with {seed=}')
 
-DEBUG = True
+DEBUG = False
 if DEBUG:
     print('DEBUG MODE ON, NOT SAVING ANY CHECKPOINTS OR LOGS')
 
@@ -30,7 +30,7 @@ def save_all(model, optimizer, scheduler, path):
         "model": model.state_dict(),
         "optimizer": optimizer.state_dict(),
         "scheduler": scheduler.state_dict(),
-    })
+    }, path)
 
 def denormalize(x, o_min, o_max):
     return x * (o_max-o_min) + o_min
@@ -40,12 +40,12 @@ def extract_targets(y):
     assert CURR_IDX < 0
     return y[:, 2*CURR_IDX:CURR_IDX]
 
-def train_epoch(model, dloader, loss_fn, opt, *, sch, epoch, metadata, progress=True, of_batch=None):
+def train_epoch(model, dloader, metadata, loss_fn, opt, *, sch, epoch, progress=True, of_batch=None):
     model.train()
     train_loss = 0
     total_examples = 0
 
-    act_ms = metadata['act_ms']
+    act_mm = metadata['train_act_mm']
 
     if of_batch:
         print('OVERFITTING TEST ON ONE BATCH!')
@@ -60,8 +60,8 @@ def train_epoch(model, dloader, loss_fn, opt, *, sch, epoch, metadata, progress=
         opt.zero_grad()
 
         out = model(batch)
-        pred = denormalize(out.reshape(-1, 2)[mask], *act_ms)
-        targ = denormalize(extract_targets(y), *act_ms)
+        pred = denormalize(out[mask], *act_mm)
+        targ = denormalize(extract_targets(y), *act_mm)
 
         # get loss and update model
         # 0 1 2 3 4 5 6 7 8 9 10 11 12 13 
@@ -77,9 +77,11 @@ def train_epoch(model, dloader, loss_fn, opt, *, sch, epoch, metadata, progress=
     return train_loss/total_examples
 
 @torch.no_grad()
-def test_epoch(model, dloader, metric, *, epoch, progress=False):
+def test_epoch(model, dloader, metadata, metric, *, epoch, progress=False):
     model.eval()
     scores = []
+
+    act_mm = metadata['test_act_mm']
 
     progress = tqdm if progress else lambda x, **kwargs: x
     for batch in progress(dloader, desc=f'[Epoch {epoch:03d}] testing', total=len(dloader)):
@@ -87,8 +89,10 @@ def test_epoch(model, dloader, metric, *, epoch, progress=False):
         y, mask = batch.y, batch.robot_mask
 
         out = model(batch)
+        pred = denormalize(out[mask].cpu().numpy(), *act_mm)
+        targ = denormalize(extract_targets(y).cpu().numpy(), *act_mm)
         
-        score = metric(out.reshape(-1, 2)[mask].cpu().numpy(), extract_targets(y).cpu().numpy())
+        score = metric(pred, targ)
         scores.append(score)
 
     return np.mean(scores)
@@ -97,28 +101,28 @@ def main():
     epochs = 1000
     batch_sizes = 32, 32
     learning_rate = 1e-4
-    tss_rate, window_len = 5, 7
+    tss_rate, window_len = 1, 7
 
     torch.cuda.empty_cache()
 
     # assert False
-    data_seed = 106
+    data_seed = 6635 #9613
     data_folder = f'spline_i-{data_seed}'
 
     run_path = MODEL_PATH/f'{tl}-{data_seed}'
     run_path.mkdir()
 
-    metadata = {}
-    train_loader, test_loader = series_dloaders(
+    (train_loader, test_loader), metadata = series_dloaders(
         data_folder,
         chunks=((0, 800), (800, 1000)),
         batch_sizes=batch_sizes,
         shuffles=(True, True),
         timeseries_samplerate=tss_rate,
-        window_len=window_len,
-        hook=metadata
+        window_len=window_len
     )
     of_batch = None # next(iter(train_loader))
+    print(metadata)
+
 
     # model = ANet(1+2*window_len, 3*window_len, heads=32, concat=False).cuda()
     model = LearnedSimulator(window_size=window_len).cuda()
@@ -128,25 +132,27 @@ def main():
     best_score, best_epoch = np.inf, 0
 
     for epoch in range(1, epochs):
-        train_loss = train_epoch(model, train_loader, loss_fn=L1Loss(), opt=optimizer, sch=scheduler, of_batch=of_batch, epoch=epoch)
-        test_mse = test_epoch(model, test_loader, metric=mae, epoch=epoch)
-
-        # print(f'[Epoch {epoch:03d}] Train Loss: {train_loss:.4f}')
+        train_loss = train_epoch(model, train_loader, metadata=metadata,
+                                 loss_fn=MSELoss(), opt=optimizer, sch=scheduler,
+                                 of_batch=of_batch, epoch=epoch)
+        test_metric = test_epoch(model, test_loader, metadata=metadata,
+                                 metric=mse,
+                                 epoch=epoch)
 
         if not DEBUG:
-            writer.add_scalar("MAE Loss/train", train_loss, epoch)
-            writer.add_scalar("MAE Loss/test", test_mse, epoch)
+            writer.add_scalar("MSE Loss/train", train_loss, epoch)
+            writer.add_scalar("MSE Loss/test", test_metric, epoch)
 
-        if best_score > test_mse:
-            best_score = test_mse
+        if best_score > test_metric:
+            best_score = test_metric
             best_epoch = epoch
             if not DEBUG:
-                save_all(model, optimizer, scheduler, run_path/f'best_{epoch}_{test_mse}.pth')
+                save_all(model, optimizer, scheduler, run_path/f'best_{epoch}_{test_metric}.pth')
 
         if not DEBUG and epoch % 10 == 0:
             save_all(model, optimizer, scheduler, run_path/f'model_{epoch}.pth')
 
-        print(f'[Epoch {epoch:03d}] Train Loss: {train_loss:.10f}, Test MSE: {test_mse:.10f}, best={best_score:.10f} at {best_epoch}')
+        print(f'[Epoch {epoch:03d}] Train Loss: {train_loss:.10f}, Test MSE: {test_metric:.10f}, best={best_score:.10f} at {best_epoch}')
 
         if not DEBUG:
             writer.flush()

@@ -149,7 +149,7 @@ class World(object):
         for i,agent in enumerate(self.agents):
             if agent.movable:
                 noise = np.random.randn(*agent.action.u.shape) * agent.u_noise if agent.u_noise else 0.0
-                p_force[i] = agent.action.u + noise 
+                p_force[i] = agent.action.u#W + noise 
         # print(np.array(p_force[:-2]))
         return p_force
 
@@ -186,8 +186,9 @@ class World(object):
                     away_unit = away_vec/magnitude
                     force += self.repulsive_magnitude * away_unit/(magnitude**2)
             else:
-                towards_c = -pos/np.linalg.norm(pos)
-                force = 0.1 * towards_c
+                pass
+                # towards_c = -pos/np.linalg.norm(pos)
+                # force = 0.1 * towards_c
             p_force[i] += force
 
         return p_force

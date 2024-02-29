@@ -2,6 +2,30 @@ from datetime import datetime
 import pickle
 from itertools import islice
 import numpy as np
+import matplotlib.pyplot as plt
+
+
+def plot_xy(arr, autokill=0):
+    # Plot for acts[:,0]
+    plt.subplot(2, 1, 1)  # 2 rows, 1 column, plot 1
+    plt.hist(arr[:,0], bins=1000, alpha=0.7)
+    plt.title('Histogram of x-accelerations')
+    plt.xlabel('x-values')
+    plt.ylabel('Frequency')
+
+    # Plot for acts[:,1]
+    plt.subplot(2, 1, 2)  # 2 rows, 1 column, plot 2
+    plt.hist(arr[:,1], bins=1000, alpha=0.7)
+    plt.title('Histogram of y-accelerations')
+    plt.xlabel('y-values')
+    plt.ylabel('Frequency')
+
+    if autokill:
+        plt.show(block=False)
+        plt.pause(autokill)
+        plt.close()
+    else:
+        plt.show()
 
 def save_pkl(obj, s, ext=False):
     with open(f'{s}.pkl' if ext else s, 'wb') as f:

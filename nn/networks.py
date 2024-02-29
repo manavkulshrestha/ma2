@@ -69,8 +69,8 @@ class IntConv(pyg.nn.MessagePassing): # SchInteractionNetwork class
     
     def __init__(self, hidden_size, layers):
         super().__init__()
-        self.lin_edge = MLP(in_channels=hidden_size*3, hidden_channels=hidden_size, out_channels=hidden_size, num_layers=layers, act=LeakyReLU(), dropout=0)
-        self.lin_node = MLP(in_channels=hidden_size*2, hidden_channels=hidden_size, out_channels=hidden_size, num_layers=layers, act=LeakyReLU(), dropout=0)
+        self.lin_edge = MLP(in_channels=hidden_size*3, hidden_channels=hidden_size, out_channels=hidden_size, num_layers=layers, act=LeakyReLU(), dropout=0.)
+        self.lin_node = MLP(in_channels=hidden_size*2, hidden_channels=hidden_size, out_channels=hidden_size, num_layers=layers, act=LeakyReLU(), dropout=0.)
 
     def forward(self, x, edge_index, edge_feature, node_dist):
         edge_out, aggr = self.propagate(edge_index, x=(x, x), edge_feature=edge_feature, node_dist=node_dist)
@@ -114,9 +114,10 @@ class LearnedSimulator(torch.nn.Module):
 
         self.window_size = window_size
         self.embed_type = torch.nn.Embedding(num_particle_types, particle_type_dim)
-        self.node_in = MLP(in_channels=node_dim, hidden_channels=hidden_size, out_channels=hidden_size, num_layers=3, act=LeakyReLU(), dropout=0)
-        self.edge_in = MLP(in_channels=edge_dim, hidden_channels=hidden_size, out_channels=hidden_size, num_layers=3, act=LeakyReLU(), dropout=0)
-        self.node_out = MLP(in_channels=hidden_size, hidden_channels=hidden_size, out_channels=dim, num_layers=3, act=LeakyReLU(), dropout=0)
+        # expects channel list??
+        self.node_in = MLP(in_channels=node_dim, hidden_channels=hidden_size, out_channels=hidden_size, num_layers=3, act=LeakyReLU(), dropout=0.)
+        self.edge_in = MLP(in_channels=edge_dim, hidden_channels=hidden_size, out_channels=hidden_size, num_layers=3, act=LeakyReLU(), dropout=0.)
+        self.node_out = MLP(in_channels=hidden_size, hidden_channels=hidden_size, out_channels=dim, num_layers=3, act=LeakyReLU(), dropout=0.)
 
         self.n_mp_layers = n_mp_layers
         if gnn_type == "SchInteractionNetwork":
