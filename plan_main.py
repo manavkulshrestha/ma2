@@ -7,6 +7,7 @@ from collections import deque
 from sim.make_env import make_env
 from data.datasets import fully_connected
 from sim.utility import pdisp
+from nn.networks import LearnedSimulator
 
 
 seed_everything(42)
@@ -60,7 +61,7 @@ def scene_window(prev_graphs, human_pos, human_disps, reached, robot_mask, edge_
     assert len(prev_graphs) == WINDOW_LEN-1
     CURR_IDX = -1
 
-    next_graph = scene_graph()
+    # next_graph = scene_graph() #TODO
     graph_list = [*prev_graphs, next_graph]
     
     node_feats = torch.cat([g.pos for g in graph_list], dim=-1)
@@ -101,7 +102,9 @@ def main():
     goals_pos = np.array([g.state.p_pos for g in env.world.landmarks])
 
     # load model
-    # TODO
+    model = LearnedSimulator(window_size=1).cuda()
+    model.load_state_dict(torch.load('models/24-02-29-19095109-6635/best_239_0.0037405944894999266.pth')['model'])
+    model.eval()
 
     # memory for prior positions
     prev_graphs = deque([])

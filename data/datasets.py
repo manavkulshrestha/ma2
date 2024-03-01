@@ -96,6 +96,16 @@ def get_graph(state, vel_mu, vel_sigma, vel_min, vel_max, act_mu, act_sigma, act
 
 def temporal_graph(graph_list):
     # node_feats = torch.cat([graph_list[0].x]+[g.pos for g in graph_list], dim=-1)
+    fg = graph_list[-1]
+    # modify pos to [0,0] out all related to robots
+    fg.pos[fg.robot_mask] = 0
+    # modify edge_attr to [0,0,0] out all related to robots
+    edge_robot_mask = np.full([len(fg.x)]*2, False)
+    edge_robot_mask[fg.robot_mask] = True
+    edge_robot_mask[:, fg.robot_mask] = True
+    edge_robot_mask = edge_robot_mask[tuple(fg.edge_index)]
+    fg.edge_attr[edge_robot_mask] = 0
+
     node_feats = torch.cat([g.pos for g in graph_list], dim=-1)
     edge_feats = torch.cat([g.edge_attr for g in graph_list], dim=-1)
     node_dists = graph_list[CURR_IDX].node_dist.reshape(-1,1)
