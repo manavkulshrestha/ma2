@@ -121,7 +121,7 @@ def main():
     # variables for environment 
     obs_n = env.reset()
     done_n = np.full(num_agents, False)
-    act_n = np.zeros([num_agents, 2]) # TODO is falses lol, not right shape
+    act_n = np.zeros([num_agents, 2])
 
     # static info for scene graph
     edge_index = fully_connected(num_agents)
