@@ -98,8 +98,13 @@ def file_test():
 
 
 def main():
-    pass
+    data_seed = 6635
+    paths = all_paths(data_seed)
+    data = load_pkl(paths[900])
+    nh, nr = [data[x] for x in ['num_humans', 'num_robots']]
+    na = nh+nr
 
+    
 
 if __name__ == '__main__':
     main()
