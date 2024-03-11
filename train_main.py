@@ -32,9 +32,8 @@ def save_all(model, optimizer, scheduler, path):
         "scheduler": scheduler.state_dict(),
     }, path)
 
-def denormalize(x, o_min, o_max):
-    return x * (o_max-o_min) + o_min
-    
+def denormalize(x, o_mu, o_sigma):
+    return x*o_sigma + o_mu
 
 def extract_targets(y):
     assert CURR_IDX < 0
@@ -45,7 +44,7 @@ def train_epoch(model, dloader, metadata, loss_fn, opt, *, sch, epoch, progress=
     train_loss = 0
     total_examples = 0
 
-    act_mm = metadata['train_act_mm']
+    act_ms = metadata['train_act_ms']
 
     if of_batch:
         print('OVERFITTING TEST ON ONE BATCH!')
@@ -60,8 +59,8 @@ def train_epoch(model, dloader, metadata, loss_fn, opt, *, sch, epoch, progress=
         opt.zero_grad()
 
         out = model(batch)
-        pred = denormalize(out[mask], *act_mm)
-        targ = denormalize(extract_targets(y), *act_mm)
+        pred = denormalize(out[mask], *act_ms)
+        targ = denormalize(extract_targets(y), *act_ms)
 
         # get loss and update model
         # 0 1 2 3 4 5 6 7 8 9 10 11 12 13 
@@ -81,7 +80,7 @@ def test_epoch(model, dloader, metadata, metric, *, epoch, progress=False):
     model.eval()
     scores = []
 
-    act_mm = metadata['test_act_mm']
+    act_ms = metadata['test_act_ms']
 
     progress = tqdm if progress else lambda x, **kwargs: x
     for batch in progress(dloader, desc=f'[Epoch {epoch:03d}] testing', total=len(dloader)):
@@ -89,8 +88,8 @@ def test_epoch(model, dloader, metadata, metric, *, epoch, progress=False):
         y, mask = batch.y, batch.robot_mask
 
         out = model(batch)
-        pred = denormalize(out[mask].cpu().numpy(), *act_mm)
-        targ = denormalize(extract_targets(y).cpu().numpy(), *act_mm)
+        pred = denormalize(out[mask].cpu().numpy(), *act_ms)
+        targ = denormalize(extract_targets(y).cpu().numpy(), *act_ms)
         
         score = metric(pred, targ)
         scores.append(score)
@@ -122,7 +121,6 @@ def main():
     )
     of_batch = None # next(iter(train_loader))
     print(metadata)
-
 
     # model = ANet(1+2*window_len, 3*window_len, heads=32, concat=False).cuda()
     model = LearnedSimulator(window_size=window_len).cuda()

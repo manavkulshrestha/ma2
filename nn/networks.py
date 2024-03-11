@@ -69,8 +69,8 @@ class IntConv(pyg.nn.MessagePassing): # SchInteractionNetwork class
     
     def __init__(self, hidden_size, layers):
         super().__init__()
-        self.lin_edge = MLP(in_channels=hidden_size*3, hidden_channels=hidden_size, out_channels=hidden_size, num_layers=layers, act=LeakyReLU(), dropout=0.)
-        self.lin_node = MLP(in_channels=hidden_size*2, hidden_channels=hidden_size, out_channels=hidden_size, num_layers=layers, act=LeakyReLU(), dropout=0.)
+        self.lin_edge = MLP(in_channels=hidden_size*3, hidden_channels=hidden_size, out_channels=hidden_size, num_layers=layers, act=LeakyReLU(), dropout=0.1)
+        self.lin_node = MLP(in_channels=hidden_size*2, hidden_channels=hidden_size, out_channels=hidden_size, num_layers=layers, act=LeakyReLU(), dropout=0.1)
 
     def forward(self, x, edge_index, edge_feature, node_dist):
         edge_out, aggr = self.propagate(edge_index, x=(x, x), edge_feature=edge_feature, node_dist=node_dist)
