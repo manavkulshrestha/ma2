@@ -98,13 +98,36 @@ def file_test():
 
 
 def main():
+    # test rollout mse. window is chunked, can't do that without making changes to datacollection
     data_seed = 6635
     paths = all_paths(data_seed)
     data = load_pkl(paths[900])
     nh, nr = [data[x] for x in ['num_humans', 'num_robots']]
     na = nh+nr
 
-    
+    model = LearnedSimulator(window_size=window_len).cuda()
+    model.load_state_dict(torch.load('models/24-03-02-01474901-6635/best_579_3.0690658604726195e-05.pth')['model'])
+    model.eval()
+
+    window_len = 7
+    batch_sizes = 1,1
+    tss_rate = 1
+    _, metadata = series_dloaders(
+        data_folder,
+        chunks=((0, 800), (800, 1000)),
+        batch_sizes=batch_sizes,
+        shuffles=(True, True),
+        timeseries_samplerate=tss_rate,
+        window_len=window_len
+    )
+
+    act_ms = metadata['train_act_ms']
+    act_mm = metadata['train_act_mm']
+    vel_ms = metadata['train_vel_ms']
+    vel_mm = metadata['train_vel_mm']
+
+
+ 
 
 if __name__ == '__main__':
     main()

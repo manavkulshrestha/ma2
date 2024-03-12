@@ -231,17 +231,21 @@ def plot_acts(seed, see_every=100):
 
 
 def main():
-    paths = all_paths(9613)
-    t = []
+#     paths = all_paths(9613)
+#     t = []
 
-    for p in paths:
-        acts = np.array([t['r_actions'] for t in load_pkl(p)['timeseries']])
-        # print(acts.min(), acts.max())
-        t.append(acts.min())
-        t.append(acts.max())
+#     for p in paths:
+#         acts = np.array([t['r_actions'] for t in load_pkl(p)['timeseries']])
+#         # print(acts.min(), acts.max())
+#         t.append(acts.min())
+#         t.append(acts.max())
 
-    t = np.array(t)
-    print(t.min(), t.max())
+#     t = np.array(t)
+#     print(t.min(), t.max())
+        
+
+    paths = all_paths(6635)
+    visualize(paths[900])
 
 
 if __name__ == '__main__':

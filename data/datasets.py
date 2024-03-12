@@ -80,8 +80,6 @@ def get_graph(state, vel_mu, vel_sigma, vel_min, vel_max, act_mu, act_sigma, act
     e_idx = fully_connected(num_agents)
     feats = torch.cat((disp, dist), dim=-1)[tuple(e_idx)]
 
-    # TODO. pred y should be in the middle of the window. Odd window size. predict action to take given result and prior state
-
     graph = Data(
         x = robot_mask.long(), # would need to change when objects, torch.nn.embedding
         y = torch.tensor(act).float(),
@@ -94,7 +92,7 @@ def get_graph(state, vel_mu, vel_sigma, vel_min, vel_max, act_mu, act_sigma, act
     
     return graph
 
-def temporal_graph(graph_list):
+def temporal_graph(graph_list, include_y=True):
     # node_feats = torch.cat([graph_list[0].x]+[g.pos for g in graph_list], dim=-1)
     fg = graph_list[-1]
     # modify pos to [0,0] out all related to robots
@@ -110,15 +108,18 @@ def temporal_graph(graph_list):
     edge_feats = torch.cat([g.edge_attr for g in graph_list], dim=-1)
     node_dists = graph_list[CURR_IDX].node_dist.reshape(-1,1)
 
-    list_graph = Data(
-        x = graph_list[0].x,
-        y = torch.cat([g.y for g in graph_list], dim=-1),
-        edge_index = graph_list[0].edge_index,
-        edge_attr = edge_feats,
-        node_dist = node_dists,
-        pos = node_feats,
-        robot_mask=graph_list[0].robot_mask
-    )
+    data_kwargs = {
+        'x': graph_list[0].x,
+        # 'y': torch.cat([g.y for g in graph_list], dim=-1),
+        'edge_index': graph_list[0].edge_index,
+        'edge_attr': edge_feats,
+        'node_dist': node_dists,
+        'pos': node_feats,
+        'robot_mask': graph_list[0].robot_mask
+    }
+    if include_y:
+        data_kwargs['y'] = torch.cat([g.y for g in graph_list], dim=-1)
+    list_graph = Data(**data_kwargs)
 
     return list_graph
 

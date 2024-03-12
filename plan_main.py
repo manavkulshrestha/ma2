@@ -5,13 +5,14 @@ import torch
 from collections import deque
 
 from sim.make_env import make_env
-from data.datasets import fully_connected
+from data.datasets import all_paths, fully_connected, temporal_graph
 from sim.utility import load_pkl, pdisp
 from nn.networks import LearnedSimulator
 
 
-seed_everything(42)
+seed_everything(120)
 WINDOW_LEN = 7
+PLAN_RECORDED = True
 
 
 def normalize(x, mu, sigma):
@@ -42,13 +43,13 @@ def subgoals(humans_pos, goals_pos, factor=0.1):
 
     return factor * unit_goal_disps, reached
 
+# TODO directly use the one from datasets instead of this
 def scene_graph(humans_pos, humans_vel, robots_pos, robots_vel, *, constants):
     robot_mask, edge_index, vel_mu, vel_sigma = constants
 
     pos = np.vstack([humans_pos, robots_pos])
     vel = np.vstack([humans_vel, robots_vel])
 
-    #TODO NORMALIZE VELS
     vel = normalize(vel, vel_mu, vel_sigma)
 
     disp = torch.tensor(pdisp(pos))
@@ -70,7 +71,6 @@ def scene_graph(humans_pos, humans_vel, robots_pos, robots_vel, *, constants):
 
 def scene_window(prev_graphs, human_pos, humans_disp, reached, *, constants):
     assert len(prev_graphs) == WINDOW_LEN-1
-    CURR_IDX = -1
     robot_mask, edge_index, vel_mu, vel_sigma = constants
 
     num_robots = torch.count_nonzero(robot_mask)
@@ -79,25 +79,36 @@ def scene_window(prev_graphs, human_pos, humans_disp, reached, *, constants):
     nhumans_vel = humans_disp
     nrobots_pos = np.zeros([num_robots, 2])
     nrobots_vel = np.zeros([num_robots, 2])
-    next_graph = scene_graph(nhumans_pos, nhumans_vel, nrobots_pos, nrobots_vel, constants=constants)
-    
-    graph_list = [*prev_graphs, next_graph]
-    
-    node_feats = torch.cat([g.pos for g in graph_list], dim=-1)
-    edge_feats = torch.cat([g.edge_attr for g in graph_list], dim=-1)
-    node_dists = graph_list[CURR_IDX].node_dist.reshape(-1,1)
 
-    list_graph = Data(
-        x = graph_list[0].x,
-        # y = torch.cat([g.y for g in graph_list], dim=-1),
-        edge_index = graph_list[0].edge_index,
-        edge_attr = edge_feats,
-        node_dist = node_dists,
-        pos = node_feats,
-        robot_mask=graph_list[0].robot_mask
-    )
+    fg = scene_graph(nhumans_pos, nhumans_vel, nrobots_pos, nrobots_vel, constants=constants)
 
-    return list_graph
+    return temporal_graph([*prev_graphs, fg], include_y=False) # CURR_IDX = -2
+
+    # next_graph = scene_graph(nhumans_pos, nhumans_vel, nrobots_pos, nrobots_vel, constants=constants)
+    # next_graph.pos[next_graph.robot_mask] = 0
+    # edge_robot_mask = np.full([len(next_graph.x)]*2, False)
+    # edge_robot_mask[next_graph.robot_mask] = True
+    # edge_robot_mask[:, next_graph.robot_mask] = True
+    # edge_robot_mask = edge_robot_mask[tuple(next_graph.edge_index)]
+    # next_graph.edge_attr[edge_robot_mask] = 0
+    
+    # graph_list = [*prev_graphs, next_graph]
+    
+    # node_feats = torch.cat([g.pos for g in graph_list], dim=-1)
+    # edge_feats = torch.cat([g.edge_attr for g in graph_list], dim=-1)
+    # node_dists = graph_list[CURR_IDX].node_dist.reshape(-1,1)
+
+    # list_graph = Data(
+    #     x = graph_list[0].x,
+    #     # y = torch.cat([g.y for g in graph_list], dim=-1),
+    #     edge_index = graph_list[0].edge_index,
+    #     edge_attr = edge_feats,
+    #     node_dist = node_dists,
+    #     pos = node_feats,
+    #     robot_mask=graph_list[0].robot_mask
+    # )
+
+    # return list_graph
 
 def initial_graph(humans_pos, robots_pos, *, constants):
     humans_vel = np.zeros([len(humans_pos), 2])
@@ -107,16 +118,44 @@ def initial_graph(humans_pos, robots_pos, *, constants):
     return scene_graph(humans_pos, humans_vel, robots_pos, robots_vel, constants=constants)
 
 
+def set_agent_states(world, timestep):
+    for h, state in zip(world.humans, timestep['h_state']):
+        h.state.p_pos = state[:2]
+        h.state.p_vel = state[2:]
+
+    for r, state in zip(world.robots, timestep['r_state']):
+        r.state.p_pos = state[:2]
+        r.state.p_vel = state[2:]
+
+    return timestep['r_actions']
+
+
 def main():
     scene_max = 1000
-    human_rng, robot_rng, goal_rng = (7, 10), (7, 10), (1, 5)
+    human_rng, robot_rng, goal_rng = (3, 5), (3, 5), (1, 2)
     render = True
 
     # set up environment
     num_humans, num_robots, num_goals = np.random.randint(*np.vstack([human_rng, robot_rng, goal_rng]).T)
+    
+    # LOAD RECORDED EPISODE
+    if PLAN_RECORDED:
+        paths = all_paths(6635)
+        data = load_pkl(paths[901])
+        num_humans, num_robots = [data[x] for x in ['num_humans', 'num_robots']]
+        timeseries = data['timeseries']
+        num_goals = 1
+    # DONE LOADING
+
     env = make_env('simple_herding', benchmark=False,
                 num_humans=num_humans, num_robots=num_robots, num_goals=num_goals)
     num_agents = num_humans+num_robots
+
+    # LOAD RECORDED EPISODE
+    if PLAN_RECORDED:
+        curr_t = WINDOW_LEN-1
+        y_ctrl = set_agent_states(env.world, timeseries[curr_t])
+    # DONE LOADING
     
     # variables for environment 
     obs_n = env.reset()
@@ -142,7 +181,9 @@ def main():
     humans_pos, _, robots_pos, _ = agent_states(env.world)
     constants = robot_mask, edge_index, vel_mu, vel_sigma
     prev_graphs = deque([initial_graph(humans_pos, robots_pos, constants=constants) for _ in range(WINDOW_LEN-1)])
-
+    if PLAN_RECORDED:
+        # None in front since it gets popped out
+        prev_graphs = deque([None]+[scene_graph(*np.hsplit(s['h_state'], 2), *np.hsplit(s['r_state'], 2), constants=constants) for s in timeseries[:curr_t]])
 
     for i in range(scene_max):
         # generate graph and normalized vels, acts. zeros if no data
@@ -153,17 +194,20 @@ def main():
         prev_graphs.popleft()
         prev_graphs.append(graph)
 
+        # SOME ISSUE HERE, prev_graphs has size 7 == WINDOW_LEN
         window = scene_window(prev_graphs, humans_pos, *subgoals(humans_pos, goals_pos), constants=constants)
+
+        if PLAN_RECORDED:
+            fs = timeseries[curr_t+1]
+            fg = scene_graph(*np.hsplit(fs['h_state'], 2), *np.hsplit(fs['r_state'], 2), constants=constants)
+            window = temporal_graph([*prev_graphs, fg], include_y=False)
 
         out = model(window.cuda())
         ctrl_r = torch.clip(denormalize(out[robot_mask], act_mu, act_sigma), -1, 1)
         act_n[num_humans:] = ctrl_r.detach().cpu().numpy()
 
-        # subgoal_test
-        # for i, (h, sg, done) in enumerate(zip(env.world.humans, *subgoals(env.world))):
-        #     if not done:
-        #         h.state.p_vel = sg
-        #         print(f'setting {i}')
+        if PLAN_RECORDED:
+            curr_t += 1
 
         env.step(act_n)
 
