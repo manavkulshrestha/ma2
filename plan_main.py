@@ -166,7 +166,7 @@ def main():
     # DONE LOADING
     
     # variables for environment 
-    obs_n = env.reset()
+    # obs_n = env.reset()
     done_n = np.full(num_agents, False)
     act_n = np.zeros([num_agents, 2])
 
