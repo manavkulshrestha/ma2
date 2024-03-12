@@ -13,7 +13,7 @@ from nn.networks import LearnedSimulator
 
 seed_everything(120)
 WINDOW_LEN = 7
-PLAN_RECORDED = True
+PLAN_RECORDED = False
 
 
 def normalize(x, mu, sigma):
