@@ -3,6 +3,7 @@ from torch_geometric.seed import seed_everything
 from torch_geometric.data import Data
 import torch
 from collections import deque
+from sklearn.metrics import mean_squared_error as mse, mean_absolute_error as mae
 
 from sim.make_env import make_env
 from data.datasets import all_paths, fully_connected, temporal_graph
@@ -23,8 +24,9 @@ def denormalize(x, o_mu, o_sigma):
 
 def agent_states(world):
     humans_pos = np.array([h.state.p_pos for h in world.humans])
-    robots_pos = np.array([r.state.p_pos for r in world.robots])
     humans_vel = np.array([h.state.p_vel for h in world.humans])
+
+    robots_pos = np.array([r.state.p_pos for r in world.robots])
     robots_vel = np.array([r.state.p_vel for r in world.robots])
 
     return humans_pos, humans_vel, robots_pos, robots_vel
@@ -118,14 +120,15 @@ def initial_graph(humans_pos, robots_pos, *, constants):
     return scene_graph(humans_pos, humans_vel, robots_pos, robots_vel, constants=constants)
 
 
-def set_agent_states(world, timestep):
-    for h, state in zip(world.humans, timestep['h_state']):
-        h.state.p_pos = state[:2]
-        h.state.p_vel = state[2:]
+def set_agent_states(world, timestep, dont=False):
+    if not dont:
+        for h, state in zip(world.humans, timestep['h_state']):
+            h.state.p_pos = state[:2]
+            h.state.p_vel = state[2:]
 
-    for r, state in zip(world.robots, timestep['r_state']):
-        r.state.p_pos = state[:2]
-        r.state.p_vel = state[2:]
+        for r, state in zip(world.robots, timestep['r_state']):
+            r.state.p_pos = state[:2]
+            r.state.p_vel = state[2:]
 
     return timestep['r_actions']
 
@@ -141,10 +144,14 @@ def main():
     # LOAD RECORDED EPISODE
     if PLAN_RECORDED:
         paths = all_paths(6635)
-        data = load_pkl(paths[901])
+        data = load_pkl(paths[900])
         num_humans, num_robots = [data[x] for x in ['num_humans', 'num_robots']]
         timeseries = data['timeseries']
         num_goals = 1
+
+        act_mse = []
+        h_pos_mse = []
+        r_pos_mse = []
     # DONE LOADING
 
     env = make_env('simple_herding', benchmark=False,
@@ -153,8 +160,9 @@ def main():
 
     # LOAD RECORDED EPISODE
     if PLAN_RECORDED:
-        curr_t = WINDOW_LEN-1
-        y_ctrl = set_agent_states(env.world, timeseries[curr_t])
+        curr_t = WINDOW_LEN-2
+        scene = timeseries[curr_t]
+        y_ctrl = set_agent_states(env.world, scene)
     # DONE LOADING
     
     # variables for environment 
@@ -191,22 +199,43 @@ def main():
         humans_pos = states[0]
 
         graph = scene_graph(*states, constants=constants)
+
+        if PLAN_RECORDED:
+            scene = timeseries[curr_t]
+            ctrl_y = set_agent_states(env.world, timeseries[curr_t], dont=True)
+            graph = scene_graph(*np.hsplit(scene['h_state'], 2), *np.hsplit(scene['r_state'], 2), constants=constants)
+
         prev_graphs.popleft()
         prev_graphs.append(graph)
 
-        # SOME ISSUE HERE, prev_graphs has size 7 == WINDOW_LEN
         window = scene_window(prev_graphs, humans_pos, *subgoals(humans_pos, goals_pos), constants=constants)
 
         if PLAN_RECORDED:
-            fs = timeseries[curr_t+1]
+            if curr_t+1 < len(timeseries):
+                fs = timeseries[curr_t+1]
+            else:
+                break
             fg = scene_graph(*np.hsplit(fs['h_state'], 2), *np.hsplit(fs['r_state'], 2), constants=constants)
             window = temporal_graph([*prev_graphs, fg], include_y=False)
 
         out = model(window.cuda())
-        ctrl_r = torch.clip(denormalize(out[robot_mask], act_mu, act_sigma), -1, 1)
-        act_n[num_humans:] = ctrl_r.detach().cpu().numpy()
+        ctrl_r = torch.clip(denormalize(out[robot_mask], act_mu, act_sigma), -1, 1).detach().cpu().numpy()
+        act_n[num_humans:] = ctrl_r
 
         if PLAN_RECORDED:
+            hpos = np.array([h.state.p_pos for h in env.world.humans])
+            rpos = np.array([r.state.p_pos for r in env.world.robots])
+
+            act_mse.append(mae(ctrl_y, ctrl_r))
+            h_pos_mse.append(mae(scene["h_state"][:,:2], hpos))
+            r_pos_mse.append(mae(scene["r_state"][:,:2], rpos))
+
+            print(f'action mae: {act_mse[-1]}')
+            print(f'h_posi mae: {h_pos_mse[-1]}')
+            print(f'r_posi mae: {r_pos_mse[-1]}')
+
+            print()
+
             curr_t += 1
 
         env.step(act_n)
@@ -218,6 +247,21 @@ def main():
             env.render()
 
     env.close()
+
+    print('min, mean, max')
+    print(f'action mae: {np.min(act_mse)}')
+    print(f'h_posi mae: {np.min(h_pos_mse[-1])}')
+    print(f'r_posi mae: {np.min(r_pos_mse[-1])}')
+    print()
+
+    print(f'action mae: {np.mean(act_mse)}')
+    print(f'h_posi mae: {np.mean(h_pos_mse[-1])}')
+    print(f'r_posi mae: {np.mean(r_pos_mse[-1])}')
+    print()
+
+    print(f'action mae: {np.max(act_mse)}')
+    print(f'h_posi mae: {np.max(h_pos_mse[-1])}')
+    print(f'r_posi mae: {np.max(r_pos_mse[-1])}')
 
 
 if __name__ == '__main__':

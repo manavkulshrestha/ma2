@@ -40,7 +40,7 @@ def time_label():
 
 def sliding(lst, n):
     """ returns a sliding window of size n over a list lst """
-    return zip(*[islice(lst, i) for i in range(n)])
+    return zip(*[lst[i:] for i in range(n)])
 
 def chunked(lst, n, exclude_less=True):
     """ return chunks of the list of size n. last chunk discarded if < n """

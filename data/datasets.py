@@ -204,7 +204,7 @@ class SeriesDataset(InMemoryDataset):
 
             ts = downsample(file_data['timeseries'], self.tss_rate)
             ts = [get_graph(s, *vel_ms, *vel_mm, *act_ms, *act_mm, num_humans=nh, num_robots=nr, num_agents=na) for i, s in ts]
-            for window in chunked(ts, self.window_len):
+            for window in sliding(ts, self.window_len):
                 data_list.append(temporal_graph(window)) # window is list of graphs, function to combine graphs
 
         return data_list
