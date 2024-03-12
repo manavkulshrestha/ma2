@@ -145,7 +145,7 @@ def main():
     
     # LOAD RECORDED EPISODE
     if PLAN_RECORDED:
-        paths = all_paths(6635)
+        paths = all_paths(7644)
         data = load_pkl(paths[900])
         num_humans, num_robots = [data[x] for x in ['num_humans', 'num_robots']]
         timeseries = data['timeseries']
@@ -179,11 +179,13 @@ def main():
 
     # load model
     model = LearnedSimulator(window_size=WINDOW_LEN).cuda()
-    model.load_state_dict(torch.load('models/24-03-02-01474901-6635/best_579_3.0690658604726195e-05.pth')['model'])
+    # model.load_state_dict(torch.load('models/24-03-02-01474901-6635/best_579_3.0690658604726195e-05.pth')['model'])
+    model.load_state_dict(torch.load('models/24-03-12-16225049-7644/best_4_0.00018871770589612424.pth')['model'])
     model.eval()
 
     # data population stats from training set
-    metadata = load_pkl('data/spline_i-6635/processed/pop_stats-0_800_800_1000-7.pkl')
+    # metadata = load_pkl('data/spline_i-6635/processed/pop_stats-0_800_800_1000-7.pkl')
+    metadata = load_pkl('data/spline_i-7644/processed/pop_stats-0_800_800_1000-7.pkl')
     act_mu, act_sigma = metadata['train_act_ms']
     vel_mu, vel_sigma = metadata['train_vel_ms']
 

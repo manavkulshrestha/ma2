@@ -13,7 +13,7 @@ def main():
     seed = np.random.randint(1, 10000) # 4914 or 
     seed_everything(seed)
 
-    N = 10000
+    N = 1000
     record = True
     test = False
 
@@ -25,7 +25,7 @@ def main():
 
     print(f'{seed=}')
     for i in tqdm(range(N)):
-        run_data = spline_scenario(scene_len=1000, human_rng=(7, 10), robot_rng=(7, 10), render=False, verbose=False)
+        run_data = spline_scenario(scene_len=1000, human_rng=(3, 6), robot_rng=(3, 6), render=False, verbose=False)
 
         filename = f'{i:0{len(str(N))}d}.pkl'
         if test:

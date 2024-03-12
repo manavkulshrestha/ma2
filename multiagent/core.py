@@ -186,7 +186,7 @@ class World(object):
                     away_unit = away_vec/magnitude
                     force += self.repulsive_magnitude * away_unit/(magnitude**2)
             else:
-                # pass
+                pass
                 towards_c = -pos/np.linalg.norm(pos)
                 force = 0.1 * towards_c
             p_force[i] += force

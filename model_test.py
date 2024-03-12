@@ -98,7 +98,6 @@ def file_test():
 
 
 def main():
-    # test rollout mse. window is chunked, can't do that without making changes to datacollection
     data_seed = 6635
     paths = all_paths(data_seed)
     data = load_pkl(paths[900])

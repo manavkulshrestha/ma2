@@ -13,7 +13,7 @@ from nn.networks import LearnedSimulator
 
 seed_everything(120)
 WINDOW_LEN = 7
-PLAN_RECORDED = True
+PLAN_RECORDED = False
 
 reuplsive_range = 0.3
 
@@ -137,7 +137,7 @@ def set_agent_states(world, timestep, dont=False):
 
 def main():
     scene_max = 1000
-    human_rng, robot_rng, goal_rng = (3, 5), (3, 5), (1, 2)
+    human_rng, robot_rng, goal_rng = (4, 5), (4, 5), (1, 2)
     render = True
 
     # set up environment
@@ -166,6 +166,17 @@ def main():
         scene = timeseries[curr_t]
         y_ctrl = set_agent_states(env.world, scene)
     # DONE LOADING
+        
+    # SET DESIRED SCENARIO
+    rloc = 0.8
+    hloc = rloc - (reuplsive_range-0.1)/np.sqrt(2)
+    r_poses = np.array([(rloc, rloc), (rloc, -rloc), (-rloc, rloc), (-rloc, -rloc)])
+    h_poses = np.array([(hloc, hloc), (hloc, -hloc), (-hloc, hloc), (-hloc, -hloc)])
+    env.world.landmarks[0].state.p_pos = [0, 0]
+    for r, pos in zip(env.world.robots, r_poses):
+        r.state.p_pos = pos
+    for h, pos in zip(env.world.humans, h_poses):
+        h.state.p_pos = pos
     
     # variables for environment 
     # obs_n = env.reset()
@@ -179,11 +190,13 @@ def main():
 
     # load model
     model = LearnedSimulator(window_size=WINDOW_LEN).cuda()
-    model.load_state_dict(torch.load('models/24-03-02-01474901-6635/best_579_3.0690658604726195e-05.pth')['model'])
+    # model.load_state_dict(torch.load('models/24-03-02-01474901-6635/best_579_3.0690658604726195e-05.pth')['model'])
+    model.load_state_dict(torch.load('models/24-03-12-16225049-7644/best_4_0.00018871770589612424.pth')['model'])
     model.eval()
 
     # data population stats from training set
-    metadata = load_pkl('data/spline_i-6635/processed/pop_stats-0_800_800_1000-7.pkl')
+    # metadata = load_pkl('data/spline_i-6635/processed/pop_stats-0_800_800_1000-7.pkl')
+    metadata = load_pkl('data/spline_i-7644/processed/pop_stats-0_800_800_1000-7.pkl')
     act_mu, act_sigma = metadata['train_act_ms']
     vel_mu, vel_sigma = metadata['train_vel_ms']
 

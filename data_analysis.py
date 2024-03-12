@@ -247,6 +247,9 @@ def main():
     paths = all_paths(6635)
     visualize(paths[900])
 
+    # paths = all_paths(7644)
+    # visualize(paths[900])
+
 
 if __name__ == '__main__':
     main()

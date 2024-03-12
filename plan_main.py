@@ -250,18 +250,18 @@ def main():
 
     print('min, mean, max')
     print(f'action mae: {np.min(act_mse)}')
-    print(f'h_posi mae: {np.min(h_pos_mse[-1])}')
-    print(f'r_posi mae: {np.min(r_pos_mse[-1])}')
+    print(f'h_posi mae: {np.min(h_pos_mse)}')
+    print(f'r_posi mae: {np.min(r_pos_mse)}')
     print()
 
     print(f'action mae: {np.mean(act_mse)}')
-    print(f'h_posi mae: {np.mean(h_pos_mse[-1])}')
-    print(f'r_posi mae: {np.mean(r_pos_mse[-1])}')
+    print(f'h_posi mae: {np.mean(h_pos_mse)}')
+    print(f'r_posi mae: {np.mean(r_pos_mse)}')
     print()
 
     print(f'action mae: {np.max(act_mse)}')
-    print(f'h_posi mae: {np.max(h_pos_mse[-1])}')
-    print(f'r_posi mae: {np.max(r_pos_mse[-1])}')
+    print(f'h_posi mae: {np.max(h_pos_mse)}')
+    print(f'r_posi mae: {np.max(r_pos_mse)}')
 
 
 if __name__ == '__main__':
