@@ -168,11 +168,16 @@ def main():
     # DONE LOADING
         
     # SET DESIRED SCENARIO
+    # rloc = 0.8
+    # hloc = rloc - (reuplsive_range-0.1)/np.sqrt(2)
+    # r_poses = np.array([(rloc, rloc), (rloc, -rloc), (-rloc, rloc), (-rloc, -rloc)])
+    # h_poses = np.array([(hloc, hloc), (hloc, -hloc), (-hloc, hloc), (-hloc, -hloc)])
+    # env.world.landmarks[0].state.p_pos = [0, 0]
     rloc = 0.8
-    hloc = rloc - (reuplsive_range-0.1)/np.sqrt(2)
     r_poses = np.array([(rloc, rloc), (rloc, -rloc), (-rloc, rloc), (-rloc, -rloc)])
-    h_poses = np.array([(hloc, hloc), (hloc, -hloc), (-hloc, hloc), (-hloc, -hloc)])
-    env.world.landmarks[0].state.p_pos = [0, 0]
+    hd_vecs = np.sign(r_poses)*[-2,-1]
+    h_poses = r_poses+hd_vecs/np.linalg.norm(hd_vecs, axis=-1)[:, np.newaxis]*reuplsive_range
+    
     for r, pos in zip(env.world.robots, r_poses):
         r.state.p_pos = pos
     for h, pos in zip(env.world.humans, h_poses):
