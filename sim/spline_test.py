@@ -1,4 +1,4 @@
-from sim.move import create_trajectory
+from move import create_trajectory
 
 
 def main():

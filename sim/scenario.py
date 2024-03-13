@@ -59,7 +59,8 @@ from data.datacollection import timestep_data
 
 def spline_scenario(scene_len=1000, render=True,
                     human_rng=(7,10), robot_rng=(7,10), goal_rng=(0,1),
-                    display_spline_idx=None, verbose=False):
+                    display_spline_idx=None, verbose=False,
+                    spline_degree=1):
     num_humans, num_robots, num_goals = np.random.randint(*np.vstack([human_rng, robot_rng, goal_rng]).T)
     env = make_env('simple_herding', benchmark=False,
                 num_humans=num_humans, num_robots=num_robots, num_goals=num_goals)
@@ -76,7 +77,7 @@ def spline_scenario(scene_len=1000, render=True,
     # targets that robots go to and whether they got there
     # targ_r = np.zeros([num_robots, 2])
     # done_r = np.full(num_robots, True) 
-    path_r = robot_paths(env.world, length=scene_len, disp_idx=display_spline_idx)
+    path_r = robot_paths(env.world, length=scene_len, disp_idx=display_spline_idx, degree=spline_degree)
 
     timeseries_data = []
 

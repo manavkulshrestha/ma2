@@ -14,9 +14,13 @@ from nn.networks import LearnedSimulator
 seed_everything(120)
 WINDOW_LEN = 7
 PLAN_RECORDED = True
+data_seed, eps_num = 652, 900
 
 reuplsive_range = 0.3
-
+# model_path = 'models/24-03-02-01474901-6635/best_579_3.0690658604726195e-05.pth'
+# meta_path = 'data/spline_i-6635/processed/pop_stats-0_800_800_1000-7.pkl'
+model_path = 'models/24-03-12-23564965-652/best_354_9.854394193098415e-06.pth'
+metadata_path = 'data/spline_i-7644/processed/pop_stats-0_800_800_1000-7.pkl'
 
 def normalize(x, mu, sigma):
     return (x-mu)/sigma
@@ -145,8 +149,8 @@ def main():
     
     # LOAD RECORDED EPISODE
     if PLAN_RECORDED:
-        paths = all_paths(6635)
-        data = load_pkl(paths[900])
+        paths = all_paths(data_seed)
+        data = load_pkl(paths[eps_num])
         num_humans, num_robots = [data[x] for x in ['num_humans', 'num_robots']]
         timeseries = data['timeseries']
         num_goals = 1
@@ -158,6 +162,9 @@ def main():
 
     env = make_env('simple_herding', benchmark=False,
                 num_humans=num_humans, num_robots=num_robots, num_goals=num_goals)
+    if PLAN_RECORDED:
+        oth = make_env('simple_herding', benchmark=False,
+                    num_humans=num_humans, num_robots=num_robots, num_goals=num_goals)
     num_agents = num_humans+num_robots
 
     # LOAD RECORDED EPISODE
@@ -165,6 +172,8 @@ def main():
         curr_t = WINDOW_LEN-2
         scene = timeseries[curr_t]
         y_ctrl = set_agent_states(env.world, scene)
+
+        set_agent_states(oth.world, scene)
     # DONE LOADING
     
     # variables for environment 
@@ -179,11 +188,11 @@ def main():
 
     # load model
     model = LearnedSimulator(window_size=WINDOW_LEN).cuda()
-    model.load_state_dict(torch.load('models/24-03-02-01474901-6635/best_579_3.0690658604726195e-05.pth')['model'])
+    model.load_state_dict(torch.load(model_path)['model'])
     model.eval()
 
     # data population stats from training set
-    metadata = load_pkl('data/spline_i-6635/processed/pop_stats-0_800_800_1000-7.pkl')
+    metadata = load_pkl(metadata_path)
     act_mu, act_sigma = metadata['train_act_ms']
     vel_mu, vel_sigma = metadata['train_vel_ms']
 
@@ -210,6 +219,8 @@ def main():
             scene = timeseries[curr_t]
             ctrl_y = set_agent_states(env.world, timeseries[curr_t], dont=True)
             graph = scene_graph(*np.hsplit(scene['h_state'], 2), *np.hsplit(scene['r_state'], 2), constants=constants)
+
+            set_agent_states(oth.world, timeseries[curr_t], dont=False)
         # DONE LOADING
 
         prev_graphs.popleft()
@@ -251,11 +262,13 @@ def main():
             
         env.step(act_n)
 
-        if np.all(done_n):
-            obs_n = env.reset()
+        # if np.all(done_n):
+        #     obs_n = env.reset()
             
         if render:
             env.render()
+            if PLAN_RECORDED:
+                oth.render()
 
     env.close()
 

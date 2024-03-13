@@ -104,6 +104,10 @@ def temporal_graph(graph_list, include_y=True):
     edge_robot_mask = edge_robot_mask[tuple(fg.edge_index)]
     fg.edge_attr[edge_robot_mask] = 0
 
+    # TEMPORARY TEST
+    # fg.edge_attr[:,:] = 0 
+    # fg.pos[:,:] = 0
+
     node_feats = torch.cat([g.pos for g in graph_list], dim=-1)
     edge_feats = torch.cat([g.edge_attr for g in graph_list], dim=-1)
     node_dists = graph_list[CURR_IDX].node_dist.reshape(-1,1)

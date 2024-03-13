@@ -191,7 +191,7 @@ def main():
     # load model
     model = LearnedSimulator(window_size=WINDOW_LEN).cuda()
     # model.load_state_dict(torch.load('models/24-03-02-01474901-6635/best_579_3.0690658604726195e-05.pth')['model'])
-    model.load_state_dict(torch.load('models/24-03-12-16225049-7644/best_4_0.00018871770589612424.pth')['model'])
+    model.load_state_dict(torch.load('models/24-03-12-23564965-652/best_354_9.854394193098415e-06.pth')['model'])
     model.eval()
 
     # data population stats from training set

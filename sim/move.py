@@ -31,10 +31,10 @@ def update_targets(targets, done, bounds=(-1, 1)):
     targets[done_idx] = samples
     return targets
 
-def agent_path(agent, keypoints, length=1000, display=False):
+def agent_path(agent, keypoints, length=1000, display=False, degree=1):
     keypoints[:, 0] = agent.state.p_pos
 
-    tck, _ = splprep(keypoints, k=2, s=0) # k=2 makes a c2 spline, s=0 looks good
+    tck, _ = splprep(keypoints, k=degree, s=0) # k=3 makes a c2 spline, s=0 looks good
 
     t = np.linspace(0, 1, length)
     spline = splev(t, tck)
@@ -46,14 +46,14 @@ def agent_path(agent, keypoints, length=1000, display=False):
 
     return spline
 
-def robot_paths(world, bounds=(-1,1), length=1000, num_keypoints=10, disp_idx=None):
+def robot_paths(world, bounds=(-1,1), length=1000, num_keypoints=10, disp_idx=None, degree=1):
     num_robots = len(world.robots)
     # boolean array for which ONE agent path to display
     disp = np.full(num_robots, False) if disp_idx else (np.arange(num_robots) == disp_idx)
 
     # generate keypoints and paths for robots
     keypoints = np.random.uniform(*bounds, size=[num_robots, 2, num_keypoints])
-    return np.array([agent_path(a, k, length=length, display=d) for a,k,d in zip(world.robots, keypoints, disp)])
+    return np.array([agent_path(a, k, length=length, display=d, degree=degree) for a,k,d in zip(world.robots, keypoints, disp)])
 
 def create_trajectory(curr_pos, bounds, num_keypoints=10, length=1000, display=False):
     '''

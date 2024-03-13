@@ -229,6 +229,81 @@ def plot_acts(seed, see_every=100):
         plot_xy(check, autokill=0.5)
         # visualize(p)
 
+def plot_trajectory(file, block=True):
+    # Load the data
+    ts = load_pkl(file)['timeseries']
+    r_trajs = np.array([s['r_state'][:, :2] for s in ts])
+    h_trajs = np.array([s['h_state'][:, :2] for s in ts])
+
+    # Create subplots with 2 rows and 1 column
+    fig, axs = plt.subplots(2, 1, figsize=(8, 10))
+
+    # Plot Robot Trajectories
+    axs[0].set_aspect('equal', adjustable="datalim")
+
+    axs[0].set_title('Robot Trajectories')
+    for i in range(r_trajs.shape[1]):
+        axs[0].plot(r_trajs[:, i, 0], r_trajs[:, i, 1])
+    axs[0].set_xlabel('X coordinate')
+    axs[0].set_ylabel('Y coordinate')
+    # axs[0].set_aspect('equal', adjustable='box')  # Set aspect ratio to be equal
+
+    # Plot Human Trajectories
+    axs[1].set_aspect('equal', adjustable="datalim")
+    
+    axs[1].set_title('Human Trajectories')
+    for i in range(h_trajs.shape[1]):
+        axs[1].plot(h_trajs[:, i, 0], h_trajs[:, i, 1])
+    axs[1].set_xlabel('X coordinate')
+    axs[1].set_ylabel('Y coordinate')
+    # axs[1].set_aspect('equal', adjustable='box')  # Set aspect ratio to be equal
+
+
+    # axs[0].set_xlim(-1, 1)
+    # axs[0].set_ylim(-1, 1)
+    # axs[1].set_xlim(-1, 1)
+    # axs[1].set_ylim(-1, 1)
+
+    # Adjust layout
+    # plt.tight_layout()
+
+    # Show the plot without blocking
+    plt.show(block=block)
+    # plt.pause(0.001)
+    # time.sleep(0.001)
+
+
+def plot_actions(file, block=True):
+    ts = load_pkl(file)['timeseries']
+    acts = np.array([s['r_actions'] for s in ts])
+
+    # Create a time array for the x-axis
+    time = np.arange(acts.shape[0])
+
+    # Create subplots for x and y accelerations
+    fig, axs = plt.subplots(2, 1, figsize=(10, 8))
+
+    # Plot x accelerations
+    for agent in range(acts.shape[1]):
+        axs[0].plot(time, acts[:, agent, 0], label=f'Robot {agent+1}')
+
+    axs[0].set_title('X Accelerations')
+    axs[0].set_xlabel('Timestep')
+    axs[0].set_ylabel('Acceleration')
+    axs[0].legend()
+
+    # Plot y accelerations
+    for agent in range(acts.shape[1]):
+        axs[1].plot(time, acts[:, agent, 1], label=f'Robot {agent+1}')
+
+    axs[1].set_title('Y Accelerations')
+    axs[1].set_xlabel('Timestep')
+    axs[1].set_ylabel('Acceleration')
+    axs[1].legend()
+
+    plt.tight_layout()
+    plt.show(block=block)
+
 
 def main():
 #     paths = all_paths(9613)
@@ -244,11 +319,17 @@ def main():
 #     print(t.min(), t.max())
         
 
-    paths = all_paths(6635)
-    visualize(paths[900])
+    # paths = all_paths(6635)
+    # visualisze(paths[900])
 
     # paths = all_paths(7644)
     # visualize(paths[900])
+
+    paths = all_paths(652)
+    plot_trajectory(paths[10], block=False)
+    plot_actions(paths[10])
+    # visualize(paths[0])
+
 
 
 if __name__ == '__main__':
