@@ -11,21 +11,14 @@ from sim.utility import load_pkl, pdisp
 from nn.networks import LearnedSimulator
 
 
-seed_everything(42)
+seed_everything(740)
 WINDOW_LEN = 2
-PLAN_RECORDED = True
-data_seed, eps_num = 6635, 900
-zero_future_states = True
-
-reuplsive_range = 0.3
-# model_path = 'models/24-03-02-01474901-6635/best_579_3.0690658604726195e-05.pth'
-# meta_path = 'data/spline_i-6635/processed/pop_stats-0_800_800_1000-7.pkl'
-
-# model_path = 'models/24-03-12-23564965-652/best_354_9.854394193098415e-06.pth'
-# metadata_path = 'data/spline_i-7644/processed/pop_stats-0_800_800_1000-7.pkl'
-
+PLAN_RECORDED = False
 model_path = 'models/24-03-13-14274015-6635/best_31_0.00044431310379877687.pth'
 metadata_path = 'data/spline_i-6635/processed/pop_stats-0_800_800_1000-2.pkl'
+
+reuplsive_range = 0.3
+
 
 def normalize(x, mu, sigma):
     return (x-mu)/sigma
@@ -95,7 +88,7 @@ def scene_window(prev_graphs, human_pos, humans_disp, reached, *, constants):
 
     fg = scene_graph(nhumans_pos, nhumans_vel, nrobots_pos, nrobots_vel, constants=constants)
 
-    return temporal_graph([*prev_graphs, fg], include_y=False, zero_future_states=zero_future_states) # CURR_IDX = -2
+    return temporal_graph([*prev_graphs, fg], include_y=False, zero_future_states=False) # CURR_IDX = -2/0
 
     # next_graph = scene_graph(nhumans_pos, nhumans_vel, nrobots_pos, nrobots_vel, constants=constants)
     # next_graph.pos[next_graph.robot_mask] = 0
@@ -145,8 +138,8 @@ def set_agent_states(world, timestep, dont=False):
 
 
 def main():
-    scene_max = 1000
-    human_rng, robot_rng, goal_rng = (3, 5), (3, 5), (1, 2)
+    scene_max = 100000
+    human_rng, robot_rng, goal_rng = (4, 5), (4, 5), (1, 2)
     render = True
 
     # set up environment
@@ -154,8 +147,8 @@ def main():
     
     # LOAD RECORDED EPISODE
     if PLAN_RECORDED:
-        paths = all_paths(data_seed)
-        data = load_pkl(paths[eps_num])
+        paths = all_paths(6635)
+        data = load_pkl(paths[900])
         num_humans, num_robots = [data[x] for x in ['num_humans', 'num_robots']]
         timeseries = data['timeseries']
         num_goals = 1
@@ -167,19 +160,31 @@ def main():
 
     env = make_env('simple_herding', benchmark=False,
                 num_humans=num_humans, num_robots=num_robots, num_goals=num_goals)
-    if PLAN_RECORDED:
-        oth = make_env('simple_herding', benchmark=False,
-                    num_humans=num_humans, num_robots=num_robots, num_goals=num_goals)
     num_agents = num_humans+num_robots
 
     # LOAD RECORDED EPISODE
     if PLAN_RECORDED:
-        curr_t = 0
+        curr_t = WINDOW_LEN-2
         scene = timeseries[curr_t]
         y_ctrl = set_agent_states(env.world, scene)
-
-        set_agent_states(oth.world, scene)
     # DONE LOADING
+        
+    # SET DESIRED SCENARIO
+    # rloc = 0.8
+    # hloc = rloc - (reuplsive_range-0.1)/np.sqrt(2)
+    # r_poses = np.array([(rloc, rloc), (rloc, -rloc), (-rloc, rloc), (-rloc, -rloc)])
+    # h_poses = np.array([(hloc, hloc), (hloc, -hloc), (-hloc, hloc), (-hloc, -hloc)])
+    # env.world.landmarks[0].state.p_pos = [0, 0]
+    rloc = 0.8
+    r_poses = np.array([(rloc, rloc), (rloc, -rloc), (-rloc, rloc), (-rloc, -rloc)])
+    hd_vecs = np.sign(r_poses)*[-2,-1]
+    h_poses = r_poses+hd_vecs/np.linalg.norm(hd_vecs, axis=-1)[:, np.newaxis]*reuplsive_range
+    env.world.landmarks[0].state.p_pos = [0.8, 0.8]
+
+    for r, pos in zip(env.world.robots, r_poses):
+        r.state.p_pos = pos
+    for h, pos in zip(env.world.humans, h_poses):
+        h.state.p_pos = pos
     
     # variables for environment 
     # obs_n = env.reset()
@@ -193,10 +198,12 @@ def main():
 
     # load model
     model = LearnedSimulator(window_size=WINDOW_LEN).cuda()
+    # model.load_state_dict(torch.load('models/24-03-02-01474901-6635/best_579_3.0690658604726195e-05.pth')['model'])
     model.load_state_dict(torch.load(model_path)['model'])
     model.eval()
 
     # data population stats from training set
+    # metadata = load_pkl('data/spline_i-6635/processed/pop_stats-0_800_800_1000-7.pkl')
     metadata = load_pkl(metadata_path)
     act_mu, act_sigma = metadata['train_act_ms']
     vel_mu, vel_sigma = metadata['train_vel_ms']
@@ -224,14 +231,18 @@ def main():
             scene = timeseries[curr_t]
             ctrl_y = set_agent_states(env.world, timeseries[curr_t], dont=True)
             graph = scene_graph(*np.hsplit(scene['h_state'], 2), *np.hsplit(scene['r_state'], 2), constants=constants)
-
-            set_agent_states(oth.world, timeseries[curr_t], dont=False)
         # DONE LOADING
 
         prev_graphs.popleft()
         prev_graphs.append(graph)
 
         window = scene_window(prev_graphs, humans_pos, *subgoals(humans_pos, goals_pos), constants=constants)
+
+        # subgoal_test
+        # for i, (h, sg, done) in enumerate(zip(env.world.humans, *subgoals(humans_pos, goals_pos))):
+        #     if not done:
+        #         h.state.p_vel = sg
+        #         print(f'setting {i}')
 
         # LOAD RECORDED EPISODE
         if PLAN_RECORDED:
@@ -240,7 +251,7 @@ def main():
             else:
                 break
             fg = scene_graph(*np.hsplit(fs['h_state'], 2), *np.hsplit(fs['r_state'], 2), constants=constants)
-            window = temporal_graph([*prev_graphs, fg], include_y=False, zero_future_states=zero_future_states)
+            window = temporal_graph([*prev_graphs, fg], include_y=False)
         # DONE LOADING
 
         out = model(window.cuda())
@@ -267,13 +278,11 @@ def main():
             
         env.step(act_n)
 
-        # if np.all(done_n):
-        #     obs_n = env.reset()
+        if np.all(done_n):
+            obs_n = env.reset()
             
         if render:
             env.render()
-            if PLAN_RECORDED:
-                oth.render()
 
     env.close()
 

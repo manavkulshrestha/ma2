@@ -13,7 +13,7 @@ from itertools import islice
 from sim.utility import save_pkl, sliding, chunked, load_pkl, pdisp
 
 
-CURR_IDX = -2
+CURR_IDX = 0
 DATA_PATH = Path('data')
 
 
@@ -92,21 +92,21 @@ def get_graph(state, vel_mu, vel_sigma, vel_min, vel_max, act_mu, act_sigma, act
     
     return graph
 
-def temporal_graph(graph_list, include_y=True):
+def temporal_graph(graph_list, include_y=True, zero_future_states=False):
     # node_feats = torch.cat([graph_list[0].x]+[g.pos for g in graph_list], dim=-1)
-    fg = graph_list[-1]
-    # modify pos to [0,0] out all related to robots
-    fg.pos[fg.robot_mask] = 0
-    # modify edge_attr to [0,0,0] out all related to robots
-    edge_robot_mask = np.full([len(fg.x)]*2, False)
-    edge_robot_mask[fg.robot_mask] = True
-    edge_robot_mask[:, fg.robot_mask] = True
-    edge_robot_mask = edge_robot_mask[tuple(fg.edge_index)]
-    fg.edge_attr[edge_robot_mask] = 0
+    for fg in graph_list[CURR_IDX+1:]:
+        # modify pos to [0,0] out all related to robots
+        fg.pos[fg.robot_mask] = 0
+        # modify edge_attr to [0,0,0] out all related to robots
+        edge_robot_mask = np.full([len(fg.x)]*2, False)
+        edge_robot_mask[fg.robot_mask] = True
+        edge_robot_mask[:, fg.robot_mask] = True
+        edge_robot_mask = edge_robot_mask[tuple(fg.edge_index)]
+        fg.edge_attr[edge_robot_mask] = 0
 
-    # TEMPORARY TEST
-    # fg.edge_attr[:,:] = 0 
-    # fg.pos[:,:] = 0
+        if zero_future_states:
+            fg.edge_attr[:,:] = 0 
+            fg.pos[:,:] = 0
 
     node_feats = torch.cat([g.pos for g in graph_list], dim=-1)
     edge_feats = torch.cat([g.edge_attr for g in graph_list], dim=-1)
@@ -128,16 +128,6 @@ def temporal_graph(graph_list, include_y=True):
     return list_graph
 
 def population_stats(file_paths, skip_val):
-    # vel_min = np.inf
-    # vel_max = -np.inf
-
-    # act_min = np.inf
-    # act_max = -np.inf
-
-    # vel_sum = np.zeros(2)
-    # act_sum = np.zeros(2)
-
-    # count = 0
 
     vels = []
     acts = []
@@ -147,16 +137,7 @@ def population_stats(file_paths, skip_val):
         ts = islice(enumerate(timeseries), 20+skip_val, None, skip_val)
         for i, t in ts:
             sum_action = np.array([s['r_actions'] for s in timeseries[i-skip_val:i]]).sum(axis=0)
-            pos, vel = np.hsplit(t['r_state'], 2)
-
-            # vel_sum += vel
-            # act_sum += sum_action
-
-            # vel_min = min(vel_min, *vel)
-            # vel_max = max(vel_max, *vel)
-
-            # act_min = min(act_min, *sum_action)
-            # act_max = max(act_max, *sum_action)
+            _, vel = np.hsplit(t['r_state'], 2)
 
             vels.append(vel)
             acts.append(sum_action)
@@ -213,31 +194,6 @@ class SeriesDataset(InMemoryDataset):
 
         return data_list
 
-    # def process_files(self):
-    #     data_list = []
-        
-    #     start, end = self.chunk
-    #     paths = sorted(self.root.iterdir())[start:end]
-    #     for path in tqdm(paths, desc=f'Processing'):
-    #         file_data = load_pkl(path)
-
-    #         ts = file_data['timeseries']
-    #         for i, (prev, curr) in enumerate(sliding(ts[::self.tss_rate], 2)):
-    #             # get nodes for prev robots and humans and curr humans
-    #             nodes, adj_mat, robot_mask = get_pairgraph_dg(_get_nodes(prev), _get_nodes(curr, include_robots=False))
-                
-    #             # create coo representation for edges
-    #             adj_mat = coo_matrix(adj_mat)
-    #             edges = torch.tensor(np.vstack([adj_mat.row, adj_mat.col]))
-                
-    #             # get actions for robots. N_r x 2 for torque or something in x,y
-    #             actions = _get_robots_actions(ts[i:i+self.tss_rate])
-                
-    #             data = Data(x=nodes.float(), edge_index=edges.long(), y=actions.float(), robot_mask=robot_mask.bool())
-    #             data_list.append(data)
-
-    #     return data_list
-
     def process(self):
         data_list = self.process_files()
         if self.pre_filter is not None:
@@ -248,6 +204,7 @@ class SeriesDataset(InMemoryDataset):
 
         data, slices = self.collate(data_list)
         torch.save((data, slices), self.processed_paths[0])
+
 
 def series_dloaders(name,
                     chunks=((0, 80), (80, 100)),

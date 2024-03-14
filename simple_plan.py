@@ -11,9 +11,11 @@ from sim.utility import load_pkl, pdisp
 from nn.networks import LearnedSimulator
 
 
-seed_everything(120)
-WINDOW_LEN = 7
+seed_everything(740)
+WINDOW_LEN = 2
 PLAN_RECORDED = False
+model_path = 'models/24-03-13-14274015-6635/best_16_0.0005180747248232365.pth'
+metadata_path = 'data/spline_i-6635/processed/pop_stats-0_800_800_1000-2.pkl'
 
 reuplsive_range = 0.3
 
@@ -86,7 +88,7 @@ def scene_window(prev_graphs, human_pos, humans_disp, reached, *, constants):
 
     fg = scene_graph(nhumans_pos, nhumans_vel, nrobots_pos, nrobots_vel, constants=constants)
 
-    return temporal_graph([*prev_graphs, fg], include_y=False) # CURR_IDX = -2
+    return temporal_graph([*prev_graphs, fg], include_y=False, zero_future_states=False) # CURR_IDX = -2/0
 
     # next_graph = scene_graph(nhumans_pos, nhumans_vel, nrobots_pos, nrobots_vel, constants=constants)
     # next_graph.pos[next_graph.robot_mask] = 0
@@ -177,7 +179,8 @@ def main():
     r_poses = np.array([(rloc, rloc), (rloc, -rloc), (-rloc, rloc), (-rloc, -rloc)])
     hd_vecs = np.sign(r_poses)*[-2,-1]
     h_poses = r_poses+hd_vecs/np.linalg.norm(hd_vecs, axis=-1)[:, np.newaxis]*reuplsive_range
-    
+    env.world.landmarks[0].state.p_pos = [0, 0.4]
+
     for r, pos in zip(env.world.robots, r_poses):
         r.state.p_pos = pos
     for h, pos in zip(env.world.humans, h_poses):
@@ -196,12 +199,12 @@ def main():
     # load model
     model = LearnedSimulator(window_size=WINDOW_LEN).cuda()
     # model.load_state_dict(torch.load('models/24-03-02-01474901-6635/best_579_3.0690658604726195e-05.pth')['model'])
-    model.load_state_dict(torch.load('models/24-03-12-23564965-652/best_354_9.854394193098415e-06.pth')['model'])
+    model.load_state_dict(torch.load(model_path)['model'])
     model.eval()
 
     # data population stats from training set
     # metadata = load_pkl('data/spline_i-6635/processed/pop_stats-0_800_800_1000-7.pkl')
-    metadata = load_pkl('data/spline_i-7644/processed/pop_stats-0_800_800_1000-7.pkl')
+    metadata = load_pkl(metadata_path)
     act_mu, act_sigma = metadata['train_act_ms']
     vel_mu, vel_sigma = metadata['train_vel_ms']
 
