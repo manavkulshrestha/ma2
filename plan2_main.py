@@ -12,8 +12,9 @@ from nn.networks import LearnedSimulator
 
 
 seed_everything(42)
-WINDOW_LEN = 2
+WINDOW_LEN, add_future = 1, False
 PLAN_RECORDED = True
+
 data_seed, eps_num = 6635, 900
 zero_future_states = True
 
@@ -24,8 +25,11 @@ reuplsive_range = 0.3
 # model_path = 'models/24-03-12-23564965-652/best_354_9.854394193098415e-06.pth'
 # metadata_path = 'data/spline_i-7644/processed/pop_stats-0_800_800_1000-7.pkl'
 
-model_path = 'models/24-03-13-14274015-6635/best_31_0.00044431310379877687.pth'
-metadata_path = 'data/spline_i-6635/processed/pop_stats-0_800_800_1000-2.pkl'
+# model_path = 'models/24-03-13-14274015-6635/best_31_0.00044431310379877687.pth'
+# metadata_path = 'data/spline_i-6635/processed/pop_stats-0_800_800_1000-2.pkl'
+
+model_path = f'models/24-03-13-20313156-{data_seed}/best_1_0.0007671195198781788.pth'
+metadata_path = f'data/spline_i-{data_seed}/processed/pop_stats-0_800_800_1000-{WINDOW_LEN}.pkl'
 
 def normalize(x, mu, sigma):
     return (x-mu)/sigma
@@ -82,8 +86,9 @@ def scene_graph(humans_pos, humans_vel, robots_pos, robots_vel, *, constants):
 
     return graph
 
-def scene_window(prev_graphs, human_pos, humans_disp, reached, *, constants):
-    assert len(prev_graphs) == WINDOW_LEN-1
+def scene_window(prev_graphs, human_pos, humans_disp, reached, *, constants, add_future=True):
+    assert len(prev_graphs) == (WINDOW_LEN-1 if add_future else WINDOW_LEN)
+    # assert len(prev_graphs) == WINDOW_LEN-1
     robot_mask, edge_index, vel_mu, vel_sigma = constants
 
     num_robots = torch.count_nonzero(robot_mask)
@@ -94,8 +99,9 @@ def scene_window(prev_graphs, human_pos, humans_disp, reached, *, constants):
     nrobots_vel = np.zeros([num_robots, 2])
 
     fg = scene_graph(nhumans_pos, nhumans_vel, nrobots_pos, nrobots_vel, constants=constants)
+    window = [*prev_graphs, fg] if add_future else list(prev_graphs)
 
-    return temporal_graph([*prev_graphs, fg], include_y=False, zero_future_states=zero_future_states) # CURR_IDX = -2
+    return temporal_graph(window, include_y=False, zero_future_states=zero_future_states, has_future=add_future) # CURR_IDX = 0/-2
 
     # next_graph = scene_graph(nhumans_pos, nhumans_vel, nrobots_pos, nrobots_vel, constants=constants)
     # next_graph.pos[next_graph.robot_mask] = 0
@@ -116,7 +122,7 @@ def scene_window(prev_graphs, human_pos, humans_disp, reached, *, constants):
     #     # y = torch.cat([g.y for g in graph_list], dim=-1),
     #     edge_index = graph_list[0].edge_index,
     #     edge_attr = edge_feats,
-    #     node_dist = node_dists,
+    #     node_dist = node_dists,False
     #     pos = node_feats,
     #     robot_mask=graph_list[0].robot_mask
     # )
@@ -231,7 +237,8 @@ def main():
         prev_graphs.popleft()
         prev_graphs.append(graph)
 
-        window = scene_window(prev_graphs, humans_pos, *subgoals(humans_pos, goals_pos), constants=constants)
+        # TODO remove add future
+        window = scene_window(prev_graphs, humans_pos, *subgoals(humans_pos, goals_pos), constants=constants, add_future=add_future)
 
         # LOAD RECORDED EPISODE
         if PLAN_RECORDED:
@@ -240,7 +247,8 @@ def main():
             else:
                 break
             fg = scene_graph(*np.hsplit(fs['h_state'], 2), *np.hsplit(fs['r_state'], 2), constants=constants)
-            window = temporal_graph([*prev_graphs, fg], include_y=False, zero_future_states=zero_future_states)
+            window = [*prev_graphs, fg] if add_future else list(prev_graphs)
+            window = temporal_graph(window, include_y=False, zero_future_states=zero_future_states, has_future=add_future)
         # DONE LOADING
 
         out = model(window.cuda())

@@ -4,6 +4,8 @@ from matplotlib import pyplot as plt
 import numpy as np
 import seaborn as sns
 from pathlib import Path
+
+from tqdm import tqdm
 from data.datasets import all_paths
 
 from sim.make_env import make_env
@@ -218,6 +220,7 @@ def acc_distr(file_path, skip_val):
     print(acts)
 
     plot_xy(acts)
+    return acts
 
 def plot_acts(seed, see_every=100):
     paths = all_paths(seed)
@@ -304,6 +307,22 @@ def plot_actions(file, block=True):
     plt.tight_layout()
     plt.show(block=block)
 
+def action_stats(apaths, eps_length=1000):
+    acts = []
+
+    for path in tqdm(apaths, desc='Calculating stats'):
+        for s in load_pkl(path)['timeseries']:
+            acts.append(s['r_actions'])
+
+    acts = np.vstack(acts)
+    mags = np.linalg.norm(acts, axis=-1)
+
+    plt.plot(mags)
+    plt.title('Action magnitudes')
+    plt.show()
+
+    return mags.mean(axis=0), mags.std(axis=0)
+
 
 def main():
 #     paths = all_paths(9613)
@@ -325,10 +344,14 @@ def main():
     # paths = all_paths(7644)
     # visualize(paths[900])
 
-    paths = all_paths(652)
-    plot_trajectory(paths[10], block=False)
-    plot_actions(paths[10])
-    # visualize(paths[0])
+    paths = all_paths(6635)
+    # print(action_stats(paths))
+    acc_distr(paths[900])
+    # plot_trajectory(paths[901], block=False)
+    # plot_actions(paths[901])
+    # visualize(paths[901])
+
+
 
 
 

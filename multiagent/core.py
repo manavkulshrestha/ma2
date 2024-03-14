@@ -1,4 +1,5 @@
 import numpy as np
+from numpy import cos, sin, pi as PI
 
 
 # physical/external base state of all entites
@@ -187,8 +188,18 @@ class World(object):
                     force += self.repulsive_magnitude * away_unit/(magnitude**2)
             else:
                 pass
-                towards_c = -pos/np.linalg.norm(pos)
-                force = 0.1 * towards_c
+                # towards_c = -pos/np.linalg.norm(pos)
+                # force = 0.1 * towards_c
+                th = np.random.uniform(-np.pi, np.pi)
+
+                rvec = np.array([np.cos(th), np.sin(th)])
+                rmag = max(0, np.random.normal(loc=0.2, scale=0.09)) # from same distribution shown by robot actions
+
+                # acts mags mean = 0.19390881508547342, std = 0.08747601005810045
+                # acts x distr (m=5.834367976106885e-07,s=0.1503169688657627), y distr (m=2.0513113491896712e-05,s=0.15052404908657874)
+
+                force = rmag*rvec
+
             p_force[i] += force
 
         return p_force

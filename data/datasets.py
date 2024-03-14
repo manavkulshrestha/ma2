@@ -18,7 +18,7 @@ DATA_PATH = Path('data')
 
 
 def all_paths(seed, start=None, end=None):
-    return list(filter(lambda p: p.is_file(), sorted(Path(f'data/spline_i-{seed}').iterdir())[start:end]))
+    return list(filter(lambda p: p.is_file() and p.suffix == '.pkl', sorted(Path(f'data/spline_i-{seed}').iterdir())[start:end]))
 
 def fully_connected(num_nodes):
     nodes = torch.arange(num_nodes)
@@ -92,21 +92,22 @@ def get_graph(state, vel_mu, vel_sigma, vel_min, vel_max, act_mu, act_sigma, act
     
     return graph
 
-def temporal_graph(graph_list, include_y=True, zero_future_states=False):
+def temporal_graph(graph_list, include_y=True, zero_future_states=False, has_future=True):
     # node_feats = torch.cat([graph_list[0].x]+[g.pos for g in graph_list], dim=-1)
-    for fg in graph_list[CURR_IDX+1:]:
-        # modify pos to [0,0] out all related to robots
-        fg.pos[fg.robot_mask] = 0
-        # modify edge_attr to [0,0,0] out all related to robots
-        edge_robot_mask = np.full([len(fg.x)]*2, False)
-        edge_robot_mask[fg.robot_mask] = True
-        edge_robot_mask[:, fg.robot_mask] = True
-        edge_robot_mask = edge_robot_mask[tuple(fg.edge_index)]
-        fg.edge_attr[edge_robot_mask] = 0
+    if has_future and len(graph_list) > 1:
+        for fg in graph_list[CURR_IDX+1:]:
+            # modify pos to [0,0] out all related to robots
+            fg.pos[fg.robot_mask] = 0
+            # modify edge_attr to [0,0,0] out all related to robots
+            edge_robot_mask = np.full([len(fg.x)]*2, False)
+            edge_robot_mask[fg.robot_mask] = True
+            edge_robot_mask[:, fg.robot_mask] = True
+            edge_robot_mask = edge_robot_mask[tuple(fg.edge_index)]
+            fg.edge_attr[edge_robot_mask] = 0
 
-        if zero_future_states:
-            fg.edge_attr[:,:] = 0 
-            fg.pos[:,:] = 0
+            if zero_future_states:
+                fg.edge_attr[:,:] = -0
+                fg.pos[:,:] = -0
 
     node_feats = torch.cat([g.pos for g in graph_list], dim=-1)
     edge_feats = torch.cat([g.edge_attr for g in graph_list], dim=-1)

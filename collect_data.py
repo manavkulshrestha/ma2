@@ -10,11 +10,11 @@ from sim.utility import load_pkl, plot_xy
 
 
 def main():
-    seed = np.random.randint(1, 10000) # 4914 or 
+    seed = 39 or np.random.randint(1, 10000) # 4914 or 
     seed_everything(seed)
 
-    N = 10000
-    record = True
+    num_scenes, scene_len = 1000, 500
+    record, render = True, False
     test = False
 
     sub_dir = Path('data')/f'spline_i-{seed}'
@@ -24,10 +24,10 @@ def main():
     norms = []
 
     print(f'{seed=}')
-    for i in tqdm(range(N)):
-        run_data = spline_scenario(scene_len=1000, human_rng=(7, 10), robot_rng=(7, 10), render=False, verbose=False, spline_degree=1)
+    for i in tqdm(range(num_scenes)):
+        run_data = spline_scenario(scene_len=1000, human_rng=(7, 10), robot_rng=(7, 10), render=render, verbose=False, spline_degree=2)
 
-        filename = f'{i:0{len(str(N))}d}.pkl'
+        filename = f'{i:0{len(str(num_scenes))}d}.pkl'
         if test:
             collected_state = np.array([[*t['h_state'], *t['r_state']] for t in run_data[0]])
             recorded_state = np.array([[*t['h_state'], *t['r_state']] for t in load_pkl(sub_dir/filename)['timeseries']])
