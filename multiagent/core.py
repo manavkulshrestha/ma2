@@ -173,7 +173,7 @@ class World(object):
         robot_locs = np.array([x.state.p_pos for x in self.robots])
         human_locs = np.array([x.state.p_pos for x in self.humans])
 
-        for i, pos in enumerate(human_locs):
+        for i, (human, pos) in enumerate(zip(self.humans, human_locs)):
             away_vecs = pos - robot_locs
 
             # close robots repell
@@ -187,18 +187,28 @@ class World(object):
                     away_unit = away_vec/magnitude
                     force += self.repulsive_magnitude * away_unit/(magnitude**2)
             else:
-                pass
+                # ROBOTS MOVE TOWARDS CENTER
                 # towards_c = -pos/np.linalg.norm(pos)
                 # force = 0.1 * towards_c
-                th = np.random.uniform(-np.pi, np.pi)
-
-                rvec = np.array([np.cos(th), np.sin(th)])
-                rmag = max(0, np.random.normal(loc=0.2, scale=0.09)) # from same distribution shown by robot actions
-
+            
+                # HUMANS HAVE ACC SET AS PER ROBOT ACT DISTRIBUTION
                 # acts mags mean = 0.19390881508547342, std = 0.08747601005810045
                 # acts x distr (m=5.834367976106885e-07,s=0.1503169688657627), y distr (m=2.0513113491896712e-05,s=0.15052404908657874)
-
-                force = rmag*rvec
+                # th = np.random.uniform(-np.pi, np.pi)
+                # rvec = np.array([np.cos(th), np.sin(th)])
+                # rmag = max(0, np.random.normal(loc=0.2, scale=0.09))
+                # force = rmag*rvec
+                
+                # HUMANS HAVE VEL SET AS PER ROBOT VEL DISTRIBUTION
+                # vels mags mean = 0.7225523392939881, std = 0.25179845006687984. Leans forward a bit
+                # vels x distr (m=0.00033287382472207, s=0.5208129880552299), y distr (m=0.0002948546861350656, s=0.5206568839728843), SEMI-CIRCLE-ISH distributions
+                # th = np.random.uniform(-np.pi, np.pi)
+                # rvec = np.array([np.cos(th), np.sin(th)])
+                # rmag = max(0, np.random.normal(loc=0.75, scale=0.25))
+                # human.state.p_vel = rmag*rvec
+            
+                # HUMANS HAVE SPLINE MOVEMENT unless being herded
+                pass
 
             p_force[i] += force
 

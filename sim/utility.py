@@ -5,18 +5,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def plot_xy(arr, autokill=0, noshow=False):
+def plot_xy(arr, value_type, autokill=0, noshow=False):
     # Plot for acts[:,0]
     plt.subplot(2, 1, 1)  # 2 rows, 1 column, plot 1
     plt.hist(arr[:,0], bins=1000, alpha=0.7)
-    plt.title('Histogram of x-accelerations')
+    plt.title(f'Histogram of x-{value_type}')
     plt.xlabel('x-values')
     plt.ylabel('Frequency')
 
     # Plot for acts[:,1]
     plt.subplot(2, 1, 2)  # 2 rows, 1 column, plot 2
     plt.hist(arr[:,1], bins=1000, alpha=0.7)
-    plt.title('Histogram of y-accelerations')
+    plt.title(f'Histogram of y-{value_type}')
     plt.xlabel('y-values')
     plt.ylabel('Frequency')
 

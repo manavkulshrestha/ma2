@@ -10,11 +10,13 @@ from sim.utility import load_pkl, plot_xy
 
 
 def main():
-    seed = 39 or np.random.randint(1, 10000) # 4914 or 
+    seed = np.random.randint(1, 10000) # 4914 or 
     seed_everything(seed)
 
     num_scenes, scene_len = 1000, 500
-    record, render = True, False
+    render = False
+    record = not render
+
     test = False
 
     sub_dir = Path('data')/f'spline_i-{seed}'

@@ -100,7 +100,7 @@ def test_epoch(model, dloader, metadata, metric, *, epoch, progress=False):
 
 def main():
     epochs = 1000
-    batch_sizes = 128, 128
+    batch_sizes = 512, 512
     learning_rate = 1e-4
     tss_rate, window_len = 1, 1
 
@@ -108,7 +108,7 @@ def main():
 
     # assert False
     # data_seed = 6635 #9613
-    data_seed = 6635 #652 #6635 #652 #9613
+    data_seed =  5953 #6635 #652 #6635 #652 #9613
     data_folder = f'spline_i-{data_seed}'
 
     run_path = MODEL_PATH/f'{tl}-{data_seed}'

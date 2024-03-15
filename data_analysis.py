@@ -219,7 +219,7 @@ def acc_distr(file_path, skip_val):
     print(len(set(acts.flatten())))
     print(acts)
 
-    plot_xy(acts)
+    plot_xy(acts, 'acceleration')
     return acts
 
 def plot_acts(seed, see_every=100):
@@ -229,7 +229,7 @@ def plot_acts(seed, see_every=100):
     for i, p in islice(enumerate(paths), None, None, see_every):
         check = np.vstack([t['r_actions'] for t in load_pkl(p)['timeseries']])
         print(i)
-        plot_xy(check, autokill=0.5)
+        plot_xy(check, 'acceleraton', autokill=0.5)
         # visualize(p)
 
 def plot_trajectory(file, block=True):
@@ -307,7 +307,7 @@ def plot_actions(file, block=True):
     plt.tight_layout()
     plt.show(block=block)
 
-def action_stats(apaths, eps_length=1000):
+def action_stats(apaths):
     acts = []
 
     for path in tqdm(apaths, desc='Calculating stats'):
@@ -317,11 +317,31 @@ def action_stats(apaths, eps_length=1000):
     acts = np.vstack(acts)
     mags = np.linalg.norm(acts, axis=-1)
 
-    plt.plot(mags)
+    plt.hist(mags, bins=1000)
     plt.title('Action magnitudes')
     plt.show()
 
     return mags.mean(axis=0), mags.std(axis=0)
+
+def velocity_stats(apaths):
+    vels = []
+
+    for path in tqdm(apaths, desc='Calculating stats'):
+        for s in load_pkl(path)['timeseries']:
+            vels.append(s['r_state'][2:])
+
+    vels = np.vstack(vels)
+    mags = np.linalg.norm(vels, axis=-1)
+
+    plt.hist(mags, bins=1000)
+    plt.title('Velocity magnitudes')
+    plt.show()
+
+    plot_xy(vels, 'velocity')
+    plt.show()
+
+    print(f'mean={mags.mean(axis=0)}, std={mags.std(axis=0)}, min={mags.min(axis=0)}, max={mags.max(axis=0)}')
+    return vels, mags
 
 
 def main():
@@ -346,7 +366,7 @@ def main():
 
     paths = all_paths(6635)
     # print(action_stats(paths))
-    acc_distr(paths[900])
+    velocity_stats(paths)
     # plot_trajectory(paths[901], block=False)
     # plot_actions(paths[901])
     # visualize(paths[901])
