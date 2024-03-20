@@ -150,7 +150,7 @@ class World(object):
         for i,agent in enumerate(self.agents):
             if agent.movable:
                 noise = np.random.randn(*agent.action.u.shape) * agent.u_noise if agent.u_noise else 0.0
-                p_force[i] = agent.action.u#W + noise 
+                p_force[i] = agent.action.u + noise 
         # print(np.array(p_force[:-2]))
         return p_force
 

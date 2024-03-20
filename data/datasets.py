@@ -58,26 +58,37 @@ def downsample(timeseries, skip_val):
 
     return timeseries_downsampled
 
-def get_graph(state, vel_mu, vel_sigma, vel_min, vel_max, act_mu, act_sigma, act_min, act_max, *, num_humans, num_robots, num_agents, normalize=True):
+def get_graph(state, vel_mu, vel_sigma, vel_min, vel_max, act_mu, act_sigma, act_min, act_max, *, num_humans, num_robots, num_agents, normalize=True,
+              exclude_humans=True):
     '''
     normalizes action and velocity
     calculates pairwise displacement vectors
     '''
-    states = np.vstack([state['h_state'], state['r_state']])
+    # states = np.vstack([state['h_state'], state['r_state']])
+    if exclude_humans:
+        states = state['r_state']
+    else:
+        states = np.vstack([state['h_state'], state['r_state']])
+
     (pos, vel), act = np.hsplit(states, 2), state['r_action_sum']
 
     if normalize: # normalization is agent agnostic using timeseries mean
         vel = (vel-vel_mu)/vel_sigma
-        # vel = (vel-vel_min)/(vel_max-vel_min)
-
         act = (act-act_mu)/act_sigma
+        # vel = (vel-vel_min)/(vel_max-vel_min)
         # act = (act-act_min)/(act_max-act_min)
 
     disp = torch.tensor(pdisp(pos))
     dist = torch.norm(disp, dim=-1, keepdim=True)
 
-    robot_mask = torch.tensor(np.arange(num_agents) >= num_humans)
-    e_idx = fully_connected(num_agents)
+    if exclude_humans:
+        robot_mask = torch.full([num_robots], True)
+        e_idx = fully_connected(num_robots)
+    else:
+        robot_mask = torch.arange(num_agents) >= num_humans
+        e_idx = fully_connected(num_agents)
+    
+
     feats = torch.cat((disp, dist), dim=-1)[tuple(e_idx)]
 
     graph = Data(
@@ -89,6 +100,17 @@ def get_graph(state, vel_mu, vel_sigma, vel_min, vel_max, act_mu, act_sigma, act
         pos = torch.tensor(vel).float(),
         robot_mask=robot_mask.bool()
     )
+
+    # if zero_humans:
+    #     human_mask = graph.robot
+    #     # modify pos to [0,0] out all related to humans
+    #     graph.pos[human_mask] = 0
+    #     # modify edge_attr to [0,0,0] out all related to humans
+    #     edge_human_mask = np.full([len(graph.x)]*2, False)
+    #     edge_human_mask[human_mask] = True
+    #     edge_human_mask[:, human_mask] = True
+    #     edge_human_mask = edge_human_mask[tuple(graph.edge_index)]
+    #     graph.edge_attr[edge_human_mask] = 0
     
     return graph
 
@@ -129,7 +151,7 @@ def temporal_graph(graph_list, include_y=True, zero_future_states=False, has_fut
     return list_graph
 
 def population_stats(file_paths, skip_val):
-
+    # TODO should human vels also be considered
     vels = []
     acts = []
 

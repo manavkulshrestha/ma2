@@ -60,10 +60,10 @@ from data.datacollection import timestep_data
 def spline_scenario(scene_len=1000, render=True,
                     human_rng=(7,10), robot_rng=(7,10), goal_rng=(0,1),
                     display_spline_idx=None, verbose=False,
-                    spline_degree=1):
+                    spline_degree=1, action_noise=0):
     num_humans, num_robots, num_goals = np.random.randint(*np.vstack([human_rng, robot_rng, goal_rng]).T)
     env = make_env('simple_herding', benchmark=False,
-                num_humans=num_humans, num_robots=num_robots, num_goals=num_goals)
+                num_humans=num_humans, num_robots=num_robots, num_goals=num_goals, action_noise=action_noise)
     # print(num_robots, num_humans, num_goals)
 
     obs_n = env.reset()

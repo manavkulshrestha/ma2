@@ -108,7 +108,7 @@ def main():
 
     # assert False
     # data_seed = 6635 #9613
-    data_seed =  5953 #6635 #652 #6635 #652 #9613
+    data_seed = 6279 #5953 #6635 #652 #6635 #652 #9613
     data_folder = f'spline_i-{data_seed}'
 
     run_path = MODEL_PATH/f'{tl}-{data_seed}'

@@ -4,7 +4,7 @@ from multiagent.scenario import BaseScenario
 
 
 class Scenario(BaseScenario):
-    def make_world(self, *, num_humans, num_robots, num_goals):
+    def make_world(self, *, num_humans, num_robots, num_goals, action_noise):
         world = World()
         # set any world properties first
         world.dim_c = 2
@@ -18,12 +18,20 @@ class Scenario(BaseScenario):
             agent.silent = True
             agent.size = 0.05
             agent.color = np.array([0.75, 0.25, 0.25])
+
+            agent.u_noise = action_noise
+
+        # human actions are defined directly in core right now so action_noise doesn't apply
+        # TODO define human action movement in action_callback
         for i, agent in enumerate(world.humans):
             agent.name = f'human{i}'
             agent.collide = True
             agent.silent = True
             agent.size = 0.05
             agent.color = np.array([0.75, 0.75, 0.25])
+
+            agent.u_noise = action_noise
+
         world.agents = world.humans+world.robots
         world.robots_eprev = np.zeros([len(world.robots), 2])
         world.humans_eprev = np.zeros([len(world.humans), 2])
