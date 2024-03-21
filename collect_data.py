@@ -27,7 +27,7 @@ def main():
 
     print(f'{seed=}')
     for i in tqdm(range(num_scenes)):
-        run_data = spline_scenario(scene_len=1000, human_rng=(0, 1), robot_rng=(7, 10), render=render, verbose=False, spline_degree=2, action_noise=3e-1)
+        run_data = spline_scenario(scene_len=1000, human_rng=(0, 1), robot_rng=(7, 10), render=render, verbose=False, spline_degree=2, action_noise=0)
 
         filename = f'{i:0{len(str(num_scenes))}d}.pkl'
         if test:

@@ -375,6 +375,20 @@ def matrix6_plot(matrices, titles):
     plt.tight_layout()
     plt.show()
 
+def matrix2_plot(matrices, titles):
+    fig, axs = plt.subplots(2, 1, figsize=(12, 10))
+    
+    for i, ax in enumerate(axs.flat):
+        plt.subplot(2, 1, i+1)
+        ax_labs = titles[i].split('~')
+        ax.imshow(matrices[i], cmap='viridis', interpolation='nearest')
+        ax.set_title(titles[i])
+        ax.set_xlabel(ax_labs[1])
+        ax.set_ylabel(ax_labs[0])
+
+    plt.tight_layout()
+    plt.show()
+
 def velact_corr(path, show=False):
     ts = load_pkl(path)['timeseries']
     vels = np.vstack([s['r_state'][:,2:] for s in ts])
@@ -484,6 +498,66 @@ def velact_corr_a(apaths, show=True):
 
     return np.array(corrs)
 
+def velact_corr_a2(apaths, show=True):
+    vels = []
+    acts = []
+
+    for path in tqdm(apaths, desc='Accumulating vels and acts'):
+        ts = load_pkl(path)['timeseries']
+        vels.extend([s['r_state'][:,2:] for s in ts])
+        acts.extend([s['r_actions'] for s in ts])
+
+    vels = np.vstack(vels)
+    acts = np.vstack(acts)
+
+    n_bins = 50
+
+    # (-1.36510714985506, 1.3829407169243049, -1.3674970173029684, 1.3304476486311572), (-0.7974531347744213, 0.7744404410555376, -0.7837394098256196, 0.7516483217999698)
+    # vel (-1.4, 1.4), act = (-.8, .8)
+    vel_bins = np.linspace(-1.4, 1.4, n_bins)
+    act_bins = np.linspace(-0.8, 0.8, n_bins)
+
+    vels_x = vels[:,0]
+    vels_y = vels[:,1]
+    acts_x = acts[:,0]
+    acts_y = acts[:,1]
+
+    # indexes for which bin they are in 
+    print('Digitizing...')
+    vx = np.digitize(vels_x, vel_bins)
+    vy = np.digitize(vels_y, vel_bins)
+    ax = np.digitize(acts_x, act_bins)
+    ay = np.digitize(acts_y, act_bins)
+
+    print('Constructing frequency matrices...')
+    #corr_vxvy = np.zeros([n_bins]*2)
+    #corr_axay = np.zeros([n_bins]*2)
+
+    corr_vxax = np.zeros([n_bins]*2)
+    #corr_vxay = np.zeros([n_bins]*2)
+    #corr_vyax = np.zeros([n_bins]*2)
+    corr_vyay = np.zeros([n_bins]*2)
+
+    print('Filling frequency matrices...')
+    #np.add.at(corr_vxvy, (vx, vy), 1)
+    #np.add.at(corr_axay, (ax, ay), 1)
+
+    np.add.at(corr_vxax, (vx, ax), 1)
+    #np.add.at(corr_vxay, (vx, ay), 1)
+    #np.add.at(corr_vyax, (vy, ax), 1)
+    np.add.at(corr_vyay, (vy, ay), 1)
+
+    print('Done!')
+
+    corrs = corr_vxax, corr_vyay
+    titles = 'vx~ax', 'vy~ay'
+
+    if show:
+        print('Plotting...')
+        matrix2_plot(corrs, titles)
+
+    return np.array(corrs)
+
 def main():
 #     paths = all_paths(9613)
 #     t = []
@@ -504,7 +578,7 @@ def main():
     # paths = all_paths(7644)
     # visualize(paths[900])
 
-    paths = all_paths(6635)
+    paths = all_paths(6279)
     # print(action_stats(paths))
     # velocity_stats(paths)
     # plot_trajectory(paths[901], block=False)
@@ -513,7 +587,7 @@ def main():
     #vas = velact_stats(paths)
     #print(vas)
 
-    velact_corr_a(paths, show=True)
+    velact_corr_a2(paths, show=True)
 
 
 

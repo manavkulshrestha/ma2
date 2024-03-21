@@ -7,8 +7,8 @@ import numpy as np
 from torch_geometric import seed_everything
 from torch.utils.tensorboard import SummaryWriter
 
-from data.datasets import series_dloaders
-from nn.networks import ANet, LearnedSimulator
+from data.datasets import posseries_dloaders, series_dloaders
+from nn.networks import ANet, LearnedSimulator, PosLearnedSimulator
 from sim.utility import time_label
 from data.datasets import CURR_IDX
 
@@ -108,13 +108,13 @@ def main():
 
     # assert False
     # data_seed = 6635 #9613
-    data_seed = 6279 #5953 #6635 #652 #6635 #652 #9613
+    data_seed =  3460 #5953 #6635 #652 #6635 #652 #9613
     data_folder = f'spline_i-{data_seed}'
 
     run_path = MODEL_PATH/f'{tl}-{data_seed}'
     run_path.mkdir()
 
-    (train_loader, test_loader), metadata = series_dloaders(
+    (train_loader, test_loader), metadata = posseries_dloaders(
         data_folder,
         chunks=((0, 800), (800, 1000)),
         batch_sizes=batch_sizes,
@@ -126,7 +126,7 @@ def main():
     print(metadata)
 
     # model = ANet(1+2*window_len, 3*window_len, heads=32, concat=False).cuda()
-    model = LearnedSimulator(window_size=window_len).cuda()
+    model = PosLearnedSimulator(window_size=window_len).cuda()
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.1 ** (1 / 5e6))
 
@@ -162,4 +162,4 @@ def main():
 if __name__ == '__main__':
     tl = time_label()
     with SummaryWriter(f'tblogs/{tl}/') as writer:
-        main() 
+        main()

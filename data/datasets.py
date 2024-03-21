@@ -59,7 +59,7 @@ def downsample(timeseries, skip_val):
     return timeseries_downsampled
 
 def get_graph(state, vel_mu, vel_sigma, vel_min, vel_max, act_mu, act_sigma, act_min, act_max, *, num_humans, num_robots, num_agents, normalize=True,
-              exclude_humans=True):
+              exclude_humans=True, no_vel=False):
     '''
     normalizes action and velocity
     calculates pairwise displacement vectors
@@ -97,7 +97,7 @@ def get_graph(state, vel_mu, vel_sigma, vel_min, vel_max, act_mu, act_sigma, act
         edge_index = e_idx.long(),
         edge_attr = feats.float(),
         node_dist = feats[:,-1].float(),
-        pos = torch.tensor(vel).float(),
+        pos = None if no_vel else torch.tensor(vel).float(),
         robot_mask=robot_mask.bool()
     )
 
@@ -114,7 +114,7 @@ def get_graph(state, vel_mu, vel_sigma, vel_min, vel_max, act_mu, act_sigma, act
     
     return graph
 
-def temporal_graph(graph_list, include_y=True, zero_future_states=False, has_future=True):
+def temporal_graph(graph_list, include_y=True, zero_future_states=False, has_future=False, no_vel=False):
     # node_feats = torch.cat([graph_list[0].x]+[g.pos for g in graph_list], dim=-1)
     if has_future and len(graph_list) > 1:
         for fg in graph_list[CURR_IDX+1:]:
@@ -131,7 +131,7 @@ def temporal_graph(graph_list, include_y=True, zero_future_states=False, has_fut
                 fg.edge_attr[:,:] = -0
                 fg.pos[:,:] = -0
 
-    node_feats = torch.cat([g.pos for g in graph_list], dim=-1)
+    node_feats = None if no_vel else torch.cat([g.pos for g in graph_list], dim=-1)
     edge_feats = torch.cat([g.edge_attr for g in graph_list], dim=-1)
     node_dists = graph_list[CURR_IDX].node_dist.reshape(-1,1)
 
@@ -157,7 +157,7 @@ def population_stats(file_paths, skip_val):
 
     for path in tqdm(file_paths, desc='Calculating Population Stats'):
         timeseries = load_pkl(path)['timeseries']
-        ts = islice(enumerate(timeseries), 20+skip_val, None, skip_val)
+        ts = islice(enumerate(timeseries), 20+skip_val, None, skip_val) #TODO simplify this now that no skipping, remove 20?
         for i, t in ts:
             sum_action = np.array([s['r_actions'] for s in timeseries[i-skip_val:i]]).sum(axis=0)
             _, vel = np.hsplit(t['r_state'], 2)
@@ -177,20 +177,21 @@ def population_stats(file_paths, skip_val):
 
 class SeriesDataset(InMemoryDataset):
     def __init__(self, root, name, *, chunk, tss_rate, window_len, hook={},
-                 transform=None, pre_transform=None, pre_filter=None):
+                 transform=None, pre_transform=None, pre_filter=None, no_vel=False):
         self.chunk = chunk
         self.root = Path(root)
         self.tss_rate = tss_rate
         self.window_len = window_len
         self.hook = hook
         self.name = name
+        self.no_vel = no_vel
 
         super().__init__(root, transform, pre_transform, pre_filter)
         self.data, self.slices = torch.load(self.processed_paths[0])
 
     @property
     def processed_file_names(self):
-        return [f'data_series_dg_{self.root.name}_{self.chunk[0]}-{self.chunk[1]}_{self.tss_rate}_{self.window_len}.pt']
+        return [f'data_series_dg_{self.root.name}_{self.chunk[0]}-{self.chunk[1]}_{self.tss_rate}_{self.window_len}_{"novel" if self.no_vel else ""}.pt']
     
     def process_files(self):
         data_list = []
@@ -211,9 +212,9 @@ class SeriesDataset(InMemoryDataset):
             na = nr+nh
 
             ts = downsample(file_data['timeseries'], self.tss_rate)
-            ts = [get_graph(s, *vel_ms, *vel_mm, *act_ms, *act_mm, num_humans=nh, num_robots=nr, num_agents=na) for i, s in ts]
+            ts = [get_graph(s, *vel_ms, *vel_mm, *act_ms, *act_mm, num_humans=nh, num_robots=nr, num_agents=na, no_vel=self.no_vel) for i, s in ts]
             for window in chunked(ts, self.window_len):
-                data_list.append(temporal_graph(window)) # window is list of graphs, function to combine graphs
+                data_list.append(temporal_graph(window, no_vel=self.no_vel)) # window is list of graphs, function to combine graphs
 
         return data_list
 
@@ -247,6 +248,35 @@ def series_dloaders(name,
     split = zip(['train', 'test'], chunks)
 
     datasets = [SeriesDataset(path, name=n, chunk=c, hook=metadata, transform=transform, window_len=window_len, tss_rate=timeseries_samplerate) for n, c in split]
+    loaders = [DataLoader(ds, batch_size=bs, shuffle=s, num_workers=8) for ds, bs, s in zip(datasets, batch_sizes, shuffles)]
+
+    hook_path = path/f'processed/pop_stats-{"_".join(map(str, np.array(chunks).flatten()))}-{window_len}.pkl'
+    if len(metadata):
+        save_pkl(metadata, hook_path)
+    else:
+        metadata = load_pkl(hook_path)
+        assert len(metadata) != 0
+
+    return loaders, metadata
+
+def posseries_dloaders(name,
+                    chunks=((0, 80), (80, 100)),
+                    batch_sizes=(64, 64),
+                    shuffles=(True, True),
+                    timeseries_samplerate=1,
+                    window_len=7):
+    # TODO check with normalized features
+    # transform = T.Compose(
+    #     # T.NormalizeFeatures(),
+    #     # T.ToDevice('cuda')
+    # )
+    transform = None
+
+    metadata = {}
+    path = DATA_PATH/name
+    split = zip(['train', 'test'], chunks)
+
+    datasets = [SeriesDataset(path, name=n, chunk=c, hook=metadata, transform=transform, window_len=window_len, tss_rate=timeseries_samplerate, no_vel=True) for n, c in split]
     loaders = [DataLoader(ds, batch_size=bs, shuffle=s, num_workers=8) for ds, bs, s in zip(datasets, batch_sizes, shuffles)]
 
     hook_path = path/f'processed/pop_stats-{"_".join(map(str, np.array(chunks).flatten()))}-{window_len}.pkl'
