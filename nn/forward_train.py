@@ -8,13 +8,13 @@ from torch_geometric import seed_everything
 from torch.utils.tensorboard import SummaryWriter
 
 from data.datasets import posseries_dloaders, series_dloaders
-from nn.networks import ANet, LearnedSimulator, PosLearnedSimulator
+from nn.networks import ANet, ForwardDynamics, LearnedSimulator, PosLearnedSimulator
 from sim.utility import time_label
-from data.datasets import CURR_IDX
+#from data.datasets import CURR_IDX
 
 from datetime import datetime
 
-
+CURR_IDX = 0
 MODEL_PATH = Path('models')
 seed = 42 or np.random.randint(1,10000)
 seed_everything(seed)
@@ -114,7 +114,7 @@ def main():
     run_path = MODEL_PATH/f'{tl}-{data_seed}'
     run_path.mkdir()
 
-    (train_loader, test_loader), metadata = posseries_dloaders(
+    (train_loader, test_loader), metadata = series_dloaders(
         data_folder,
         chunks=((0, 800), (800, 1000)),
         batch_sizes=batch_sizes,
@@ -126,7 +126,7 @@ def main():
     print(metadata)
 
     # model = ANet(1+2*window_len, 3*window_len, heads=32, concat=False).cuda()
-    model = PosLearnedSimulator(window_size=window_len).cuda()
+    model = ForwardDynamics(window_size=window_len).cuda()
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.1 ** (1 / 5e6))
 

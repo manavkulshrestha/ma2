@@ -144,7 +144,7 @@ class PosLearnedSimulator(torch.nn.Module):
         # node feature: combine categorial feature data.x and contiguous feature data.pos.
         # node_feature = torch.cat((self.embed_type(data.x), data.pos), dim=-1) #TODO here
         node_feature = self.embed_type(data.x)
-        
+
         node_feature = self.node_in(node_feature) #TODO review and fix layer sizes as per features
         edge_feature = self.edge_in(data.edge_attr)
         # stack of GNN layers
@@ -172,7 +172,7 @@ class IntConv(pyg.nn.MessagePassing): # SchInteractionNetwork class
         self.lin_node = MLP(in_channels=hidden_size*2, hidden_channels=hidden_size, out_channels=hidden_size, num_layers=layers, act=LeakyReLU(), dropout=0.1)
 
     def forward(self, x, edge_index, edge_feature, node_dist):
-        edge_out, aggr = self.propagate(edge_index, x=(x, x), edge_feature=edge_feature, node_dist=node_dist)
+        edge_out, aggr = self.propagate(edge_index, x=(x, x), edge_feature=edge_feature, node_dist=node_dist) # calls message, aggregate, and update
         node_out = self.lin_node(torch.cat((x, aggr), dim=-1))
         edge_out = edge_feature + edge_out
         node_out = x + node_out
@@ -313,5 +313,52 @@ class ANDecoder(torch.nn.Module):
         z = self.linear3(z)
 
         return z.view(-1)
+    
+
+class ForwardDynamics:
+
+    def __init__(
+        self,
+        hidden_size=128,
+        n_mp_layers=10,                                                           # number of GNN layers
+        num_particle_types=2,
+        particle_type_dim=7,                                                      # embedding dimension of particle types
+        dim=2,                                                                    # dimension of the world, typical 2D or 3D
+        window_size=2,                                                            # the model looks into W frames before the frame to be predicted
+        # heads = 3                                                                 # number of attention heads in GAT and EGAT
+    ):
+        super().__init__()
+
+        node_dim = particle_type_dim+(dim*window_size) # agent embedding size and vxel,vely, window size
+        edge_dim = window_size*(dim+1) # dim for dispx,dispy and +1 for dist, window size 
+
+        self.window_size = window_size
+        self.embed_type = torch.nn.Embedding(num_particle_types, particle_type_dim)
+        
+        self.node_in = MLP(in_channels=node_dim, hidden_channels=hidden_size, out_channels=hidden_size, num_layers=3, act=LeakyReLU(), dropout=0.)
+        self.edge_in = MLP(in_channels=edge_dim, hidden_channels=hidden_size, out_channels=hidden_size, num_layers=3, act=LeakyReLU(), dropout=0.)
+        self.edge_out = MLP(in_channels=hidden_size, hidden_channels=hidden_size, out_channels=dim+1, num_layers=3, act=LeakyReLU(), dropout=0.)# TODO try with node features concatted onto edge
+
+        self.n_mp_layers = n_mp_layers
+        if gnn_type == "SchInteractionNetwork":
+          self.layers = torch.nn.ModuleList([ForIntConv(
+              hidden_size, 3
+          ) for _ in range(n_mp_layers)])
+
+        self.reset_parameters()
+    
+    def forward(self, data):
+        node_feature = torch.cat((self.embed_type(data.x), data.velacc), dim=-1)
+        node_feature = self.node_in(node_feature)
+        edge_feature = self.edge_in(data.edge_attr)
+        
+        for i in range(self.n_mp_layers):
+            if gnn_type == "SchInteractionNetwork":
+                node_feature, edge_feature = self.layers[i](node_feature, data.edge_index, edge_feature=edge_feature, node_dist=data.node_dist)
+
+        out = self.edge_out(node_feature) #TODO try later with also node information
+        return out
+
+    
 
 # x = F.dropout(x, p=0.5, training=self.training)

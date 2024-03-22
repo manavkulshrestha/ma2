@@ -13,7 +13,7 @@ from itertools import islice
 from sim.utility import save_pkl, sliding, chunked, load_pkl, pdisp
 
 
-CURR_IDX = 0
+CURR_IDX = 1
 DATA_PATH = Path('data')
 
 
@@ -98,7 +98,8 @@ def get_graph(state, vel_mu, vel_sigma, vel_min, vel_max, act_mu, act_sigma, act
         edge_attr = feats.float(),
         node_dist = feats[:,-1].float(),
         pos = None if no_vel else torch.tensor(vel).float(),
-        robot_mask=robot_mask.bool()
+        robot_mask=robot_mask.bool(),
+        velacc = torch.cat([torch.tensor(vel), torch.tensor(act)], dim=-1).float()
     )
 
     # if zero_humans:
