@@ -1,6 +1,7 @@
 import numpy as np
 from multiagent.core import World, Agent, Landmark
 from multiagent.scenario import BaseScenario
+from sim.utility import sample_spaced
 
 
 class Scenario(BaseScenario):
@@ -51,10 +52,14 @@ class Scenario(BaseScenario):
 
     def reset_world(self, world):
         # set random initial states
+        poses = np.zeros([1, 2]) # no one will be placed exactly at 0,0
         for agent in world.agents:
-            agent.state.p_pos = np.random.uniform(-1, +1, world.dim_p)
+            agent.state.p_pos, poses = sample_spaced(-1, +1, n=world.dim_p, so_far=poses)
             agent.state.p_vel = np.zeros(world.dim_p)
             agent.state.c = np.zeros(world.dim_c)
+
+            if (agent.state.p_pos > 2).any():
+                print('hmm')
 
         for landmark in world.landmarks:
             landmark.state.p_pos = np.random.uniform(-1, +1, world.dim_p)

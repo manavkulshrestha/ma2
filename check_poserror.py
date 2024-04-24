@@ -4,16 +4,17 @@ from tqdm import tqdm
 from torch_geometric.seed import seed_everything
 import matplotlib.pyplot as plt
 
+from sim.make_env import make_env
 from sim.scenario import spline_scenario
 from data.datacollection import save_data
 from sim.utility import load_pkl, plot_xy
 
 
 def main():
-    seed = 6296 or np.random.randint(1, 10000) # 4914 or 
+    seed = 1574 or np.random.randint(1, 10000) # 4914 or 
     seed_everything(seed)
 
-    num_scenes, scene_len = 1000, 500
+    num_scenes, scene_len = 5000, 500
     render = False
     record = not render
 
@@ -27,16 +28,14 @@ def main():
 
     print(f'{seed=}')
     for i in tqdm(range(num_scenes)):
-        run_data = spline_scenario(scene_len=scene_len, human_rng=(7, 10), robot_rng=(7, 10), render=render, verbose=False, spline_degree=2, action_noise=0)
+        num_humans, num_robots, num_goals = np.random.randint(*np.vstack([(7, 10), (7, 10), (0, 1)]).T)
+        env = make_env('simple_herding', benchmark=False,
+                       num_humans=num_humans, num_robots=num_robots, num_goals=num_goals, action_noise=0)
+    # print(num_robots, num_humans, num_goals)
+        obs_n = env.reset()
 
-        filename = f'{i:0{len(str(num_scenes))}d}.pkl'
-        if test:
-            collected_state = np.array([[*t['h_state'], *t['r_state']] for t in run_data[0]])
-            recorded_state = np.array([[*t['h_state'], *t['r_state']] for t in load_pkl(sub_dir/filename)['timeseries']])
-
-            norms.append(np.linalg.norm(collected_state-recorded_state))
-
-        saved_data = save_data(*run_data, sub_dir=sub_dir, name=filename, write=record)
+        if i % 10 == 0:
+            print('tested', i)
 
     # print(norms)
     # print(sum(norms))

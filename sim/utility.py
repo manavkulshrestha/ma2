@@ -55,3 +55,12 @@ def dict_np_equal(d1, d2):
 
 def pdisp(X):
     return X[:, np.newaxis, :] - X[np.newaxis, :, :]
+
+def sample_spaced(low, high, *, n, so_far, dist_thresh=0.05):
+    while True:
+        new_point = np.random.uniform(low, high, size=(1, n))
+        distances = np.linalg.norm(so_far - new_point, axis=1)
+
+        if np.all(distances >= dist_thresh):
+            return new_point.squeeze(), np.vstack([so_far, new_point])
+

@@ -112,7 +112,7 @@ def resimulate(file_path):
 
     # initial positions
     env = make_env('simple_herding', benchmark=False,
-                   num_humans=file['num_humans'], num_robots=file['num_robots'], num_goals=0)
+                   num_humans=file['num_humans'], num_robots=file['num_robots'], num_goals=0, action_noise=0)
     
     # set initial position to same as recorded
     obs_n = env.reset()
@@ -558,6 +558,17 @@ def velact_corr_a2(apaths, show=True):
 
     return np.array(corrs)
 
+def num_anomalies(apaths):
+    ret = []
+
+    for i, path in enumerate(apaths):
+        ts = load_pkl(path)['timeseries']
+        if (ts[0]['h_state'][:,:2] > 1.5).any() or (ts[0]['r_state'][:,:2] > 1.5).any():
+            ret.append(i)
+
+    return ret
+
+
 def main():
 #     paths = all_paths(9613)
 #     t = []
@@ -578,7 +589,7 @@ def main():
     # paths = all_paths(7644)
     # visualize(paths[900])
 
-    paths = all_paths(6279)
+    paths = all_paths(633)
     # print(action_stats(paths))
     # velocity_stats(paths)
     # plot_trajectory(paths[901], block=False)
@@ -587,8 +598,11 @@ def main():
     #vas = velact_stats(paths)
     #print(vas)
 
-    velact_corr_a2(paths, show=True)
+    # velact_corr_a2(paths, show=True)
 
+    # resimulate(paths[87])
+    anom = num_anomalies(paths)
+    print(len(anom), anom)
 
 
 if __name__ == '__main__':

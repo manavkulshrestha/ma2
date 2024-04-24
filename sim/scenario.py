@@ -60,13 +60,18 @@ from data.datacollection import timestep_data
 def spline_scenario(scene_len=1000, render=True,
                     human_rng=(7,10), robot_rng=(7,10), goal_rng=(0,1),
                     display_spline_idx=None, verbose=False,
-                    spline_degree=1, action_noise=0):
+                    spline_degree=1, action_noise=0, meta=None):
     num_humans, num_robots, num_goals = np.random.randint(*np.vstack([human_rng, robot_rng, goal_rng]).T)
     env = make_env('simple_herding', benchmark=False,
                 num_humans=num_humans, num_robots=num_robots, num_goals=num_goals, action_noise=action_noise)
     # print(num_robots, num_humans, num_goals)
 
     obs_n = env.reset()
+
+    i_hpos = np.array([x.state.p_pos for x in env.world.humans])
+    i_rpos = np.array([x.state.p_pos for x in env.world.robots])
+    # print('INITIAL STATE', hpos, rpos)
+
     # robot actcions
     act_n = np.zeros([num_humans+num_robots, 2])
 
@@ -106,6 +111,13 @@ def spline_scenario(scene_len=1000, render=True,
             
         if render:
             env.render()
+        # SEED 1574
+
+        hpos = np.array([x.state.p_pos for x in env.world.humans])
+        rpos = np.array([x.state.p_pos for x in env.world.robots])
+
+        if (abs(hpos) > 1.5).any() or (abs(rpos) > 1.5).any():
+            print(abs(hpos).max(), abs(rpos).max())
 
         timeseries_data.append(timestep_data(env.world, humans_actions=act_n[:num_humans], robots_actions=ctrl_r))
 

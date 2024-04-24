@@ -166,10 +166,10 @@ class IntConv(pyg.nn.MessagePassing): # SchInteractionNetwork class
     SchNet as proposed in this paper:
     https://arxiv.org/abs/1706.08566"""
     
-    def __init__(self, hidden_size, layers):
+    def __init__(self, hidden_size, layers, dropout=0.):
         super().__init__()
-        self.lin_edge = MLP(in_channels=hidden_size*3, hidden_channels=hidden_size, out_channels=hidden_size, num_layers=layers, act=LeakyReLU(), dropout=0.1)
-        self.lin_node = MLP(in_channels=hidden_size*2, hidden_channels=hidden_size, out_channels=hidden_size, num_layers=layers, act=LeakyReLU(), dropout=0.1)
+        self.lin_edge = MLP(in_channels=hidden_size*3, hidden_channels=hidden_size, out_channels=hidden_size, num_layers=layers, act=LeakyReLU(), dropout=dropout)
+        self.lin_node = MLP(in_channels=hidden_size*2, hidden_channels=hidden_size, out_channels=hidden_size, num_layers=layers, act=LeakyReLU(), dropout=dropout)
 
     def forward(self, x, edge_index, edge_feature, node_dist):
         edge_out, aggr = self.propagate(edge_index, x=(x, x), edge_feature=edge_feature, node_dist=node_dist) # calls message, aggregate, and update
@@ -315,7 +315,7 @@ class ANDecoder(torch.nn.Module):
         return z.view(-1)
     
 
-class ForwardDynamics:
+class ForwardDynamics(torch.nn.Module):
 
     def __init__(
         self,
@@ -329,34 +329,41 @@ class ForwardDynamics:
     ):
         super().__init__()
 
-        node_dim = particle_type_dim+(dim*window_size) # agent embedding size and vxel,vely, window size
-        edge_dim = window_size*(dim+1) # dim for dispx,dispy and +1 for dist, window size 
+        # Following assume 1 future state, which is subtracted.
+        node_dim = particle_type_dim+((dim*2)*(window_size-1)) # agent embedding size and vxel,vely,actx,acty, window size. x2 because vx,vy,ax,ay
+        edge_dim = (window_size-1)*(dim+1) # dim for dispx,dispy and +1 for dist, window size.
 
         self.window_size = window_size
         self.embed_type = torch.nn.Embedding(num_particle_types, particle_type_dim)
         
         self.node_in = MLP(in_channels=node_dim, hidden_channels=hidden_size, out_channels=hidden_size, num_layers=3, act=LeakyReLU(), dropout=0.)
         self.edge_in = MLP(in_channels=edge_dim, hidden_channels=hidden_size, out_channels=hidden_size, num_layers=3, act=LeakyReLU(), dropout=0.)
-        self.edge_out = MLP(in_channels=hidden_size, hidden_channels=hidden_size, out_channels=dim+1, num_layers=3, act=LeakyReLU(), dropout=0.)# TODO try with node features concatted onto edge
+
+        self.edge_out = MLP(in_channels=3*hidden_size, hidden_channels=hidden_size, out_channels=dim+1, num_layers=3, act=LeakyReLU(), dropout=0.)
 
         self.n_mp_layers = n_mp_layers
         if gnn_type == "SchInteractionNetwork":
-          self.layers = torch.nn.ModuleList([ForIntConv(
-              hidden_size, 3
+          self.layers = torch.nn.ModuleList([IntConv(
+              hidden_size, 3, dropout=0.2
           ) for _ in range(n_mp_layers)])
 
         self.reset_parameters()
+
+    def reset_parameters(self):
+        torch.nn.init.xavier_uniform_(self.embed_type.weight)
     
     def forward(self, data):
-        node_feature = torch.cat((self.embed_type(data.x), data.velacc), dim=-1)
+        node_feature = torch.cat((self.embed_type(data.x), data.vels_acts), dim=-1)
         node_feature = self.node_in(node_feature)
-        edge_feature = self.edge_in(data.edge_attr)
+        edge_feature = self.edge_in(data.fedge_attr)
         
         for i in range(self.n_mp_layers):
             if gnn_type == "SchInteractionNetwork":
                 node_feature, edge_feature = self.layers[i](node_feature, data.edge_index, edge_feature=edge_feature, node_dist=data.node_dist)
 
-        out = self.edge_out(node_feature) #TODO try later with also node information
+        i, j = data.edge_index
+        pair_feature = torch.cat([node_feature[i], edge_feature, node_feature[j]], dim=-1) # cat([zi, eij, zj])
+        out = self.edge_out(pair_feature)
         return out
 
     
